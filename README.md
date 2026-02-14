@@ -1,22 +1,10 @@
 <!-- markdownlint-disable MD033 MD026 MD034 -->
 
-<h1 align="center">
-  <img src="public/logo.png" alt="DecoTV Logo" width="160" style="margin-bottom: 12px;" />
-  <br />
-  DecoTV
-</h1>
+# CareCast
 
-> 🎬 **DecoTV** 是一个开箱即用的、跨平台的影视聚合播放器。它基于 **Next.js 16** + **Tailwind&nbsp;CSS 4** + **TypeScript 5** 构建，支持多资源搜索、在线播放、收藏同步、播放记录、云端存储，让你可以随时随地畅享海量免费影视内容。**支持本地无数据库模式、CMS 全量代理、隐私纵深防御等企业级特性。**
 
-<div align="center">
-
-![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
-![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4-38bdf8?logo=tailwindcss)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Docker Ready](https://img.shields.io/badge/Docker-ready-blue?logo=docker)
-
-</div>
+> 基于 DecoTV（ **Next.js 16** + **Tailwind CSS 4** + **TypeScript 5**）二次开发  
+> 定位：面向家庭老人场景的“零操作自动续播 + 防误触 + 可远程控制”的电视应用模式。
 
 ---
 
