@@ -1,4 +1,6 @@
-# CareCastTV（护播）
+# 长映TV
+
+## CareCastTV
 
 > 面向家庭老人场景的电视 Web 应用：**零操作自动续播 + 防误触 + 可远程控制**。
 >
@@ -45,7 +47,7 @@
     "careModeEnabled": true,
     "countdownSeconds": 5,
     "verifyTimeoutSeconds": 30,
-    "autoAdvance": true
+    "autoAdvance": true,
   },
   "playlist": {
     "items": [
@@ -54,11 +56,11 @@
         "source": "源key",
         "vodId": "12345",
         "title": "某电视剧",
-        "totalEpisodes": 40
-      }
+        "totalEpisodes": 40,
+      },
     ],
     "currentItemId": "pli_1",
-    "loop": false
+    "loop": false,
   },
   // 可选：远程点播指令，按 id 去重、只执行一次
   "command": {
@@ -66,8 +68,8 @@
     "type": "playNow",
     "source": "源key",
     "vodId": "67890",
-    "title": "临时想看的电影"
-  }
+    "title": "临时想看的电影",
+  },
 }
 ```
 
@@ -107,23 +109,23 @@ pnpm lint       # 代码检查
 
 各环境的配置位置：
 
-| 环境 | 配置方法 |
-| --- | --- |
+| 环境     | 配置方法                                                                                  |
+| -------- | ----------------------------------------------------------------------------------------- |
 | 本地开发 | 项目根目录建 `.env.local` 文件，内容 `PASSWORD=你的密码`（该文件已被 git 忽略，不会提交） |
-| Docker | 启动命令加 `-e PASSWORD=你的密码` |
-| Vercel | 项目 Settings → Environment Variables 中添加（见下方 Vercel 部署流程第 4 步） |
+| Docker   | 启动命令加 `-e PASSWORD=你的密码`                                                         |
+| Vercel   | 项目 Settings → Environment Variables 中添加（见下方 Vercel 部署流程第 4 步）             |
 
 ### 全部环境变量一览
 
-| 变量 | 必填 | 说明 |
-| --- | --- | --- |
-| `PASSWORD` | ✅ | 访问密码，所有模式必填 |
-| `NEXT_PUBLIC_STORAGE_TYPE` | 否 | 存储模式：`localstorage`（默认）/ `upstash` / `redis` / `kvrocks`。**Vercel 部署请用 `upstash`**，原因见下 |
-| `USERNAME` | 数据库模式必填 | 站长（owner）账号名，`upstash`/`redis` 模式下用于登录管理后台 |
-| `UPSTASH_URL` / `UPSTASH_TOKEN` | upstash 模式必填 | Upstash Redis 的 REST 地址与 Token |
-| `AUTH_SECRET` | 生产建议 | 签名密钥，`openssl rand -base64 32` 生成 |
-| `NEXT_PUBLIC_SITE_NAME` | 否 | 站点名，默认 CareCastTV |
-| `ANNOUNCEMENT` | 否 | 首页公告文案 |
+| 变量                            | 必填             | 说明                                                                                                       |
+| ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| `PASSWORD`                      | ✅               | 访问密码，所有模式必填                                                                                     |
+| `NEXT_PUBLIC_STORAGE_TYPE`      | 否               | 存储模式：`localstorage`（默认）/ `upstash` / `redis` / `kvrocks`。**Vercel 部署请用 `upstash`**，原因见下 |
+| `USERNAME`                      | 数据库模式必填   | 站长（owner）账号名，`upstash`/`redis` 模式下用于登录管理后台                                              |
+| `UPSTASH_URL` / `UPSTASH_TOKEN` | upstash 模式必填 | Upstash Redis 的 REST 地址与 Token                                                                         |
+| `AUTH_SECRET`                   | 生产建议         | 签名密钥，`openssl rand -base64 32` 生成                                                                   |
+| `NEXT_PUBLIC_SITE_NAME`         | 否               | 站点名，默认 CareCastTV                                                                                    |
+| `ANNOUNCEMENT`                  | 否               | 首页公告文案                                                                                               |
 
 ## 部署到 Vercel（推荐，免费零运维）
 
@@ -194,13 +196,13 @@ CareCastTV 的播放源是**苹果 CMS（maccms V10）采集站 API**，特征�
 
 ### 字段含义
 
-| 字段 | 必填 | 说明 |
-| --- | --- | --- |
-| `key` | ✅ | 该源的唯一标识，自己起个英文小写短名（如 `demo1`）。**关怀播放列表、远程配置 carecast.json 里的 `source` 字段填的就是它** |
-| `name` | ✅ | 显示名称（如"示例资源站"） |
-| `api` | ✅ | 采集站 API 地址，到 `/api.php/provide/vod` 为止 |
-| `detail` | 否 | 详情页地址，多数源留空即可 |
-| `is_adult` | 否 | 标记为成人源后会被硬性过滤，正常不用填 |
+| 字段       | 必填 | 说明                                                                                                                      |
+| ---------- | ---- | ------------------------------------------------------------------------------------------------------------------------- |
+| `key`      | ✅   | 该源的唯一标识，自己起个英文小写短名（如 `demo1`）。**关怀播放列表、远程配置 carecast.json 里的 `source` 字段填的就是它** |
+| `name`     | ✅   | 显示名称（如"示例资源站"）                                                                                                |
+| `api`      | ✅   | 采集站 API 地址，到 `/api.php/provide/vod` 为止                                                                           |
+| `detail`   | 否   | 详情页地址，多数源留空即可                                                                                                |
+| `is_adult` | 否   | 标记为成人源后会被硬性过滤，正常不用填                                                                                    |
 
 ### 两种配置方法
 
