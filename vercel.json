@@ -37,11 +37,5 @@
       "path": "/api/cron",
       "schedule": "0 1 * * *"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/proxy/:path*",
-      "destination": "/api/proxy/:path*"
-    }
   ]
 }
