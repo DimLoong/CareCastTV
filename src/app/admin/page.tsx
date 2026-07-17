@@ -27,6 +27,7 @@ import {
   Check,
   CheckCircle,
   ChevronDown,
+  Copy,
   Database,
   Download,
   ExternalLink,
@@ -41,6 +42,8 @@ import { GripVertical } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Switch } from 'tdesign-react';
+import 'tdesign-react/lib/_util/react-19-adapter';
 
 import { AdminConfig } from '@/lib/admin.types';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
@@ -54,6 +57,19 @@ const ImportExportModal = dynamic<ImportExportModalProps>(
   () => import('../../components/ImportExportModal').then((mod) => mod.default),
   { ssr: false },
 );
+
+// 把时间戳格式化为「x 分钟前 / x 小时前 / x 天前」，用于有效性检测时间展示
+const formatRelativeTime = (ts: number): string => {
+  const diff = Date.now() - ts;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return '刚刚';
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return new Date(ts).toLocaleDateString('zh-CN');
+};
 
 // 统一按钮样式系统
 const buttonStyles = {
@@ -2543,6 +2559,52 @@ const VideoSourceConfig = ({
     }>
   >([]);
 
+  // 有效性检测结果持久化：source key -> { status, checkedAt }
+  // 存 localStorage，页面刷新/重开后仍能看到上次的检测结论与检测时间
+  const VALIDATION_STORAGE_KEY = 'carecasttv_source_validation';
+  const [persistedValidation, setPersistedValidation] = useState<
+    Record<
+      string,
+      { status: 'valid' | 'no_results' | 'invalid'; checkedAt: number }
+    >
+  >({});
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(VALIDATION_STORAGE_KEY);
+      if (stored) setPersistedValidation(JSON.parse(stored));
+    } catch {
+      // 解析失败按未检测处理
+    }
+  }, []);
+
+  const savePersistedValidation = useCallback(
+    (key: string, status: 'valid' | 'no_results' | 'invalid') => {
+      setPersistedValidation((prev) => {
+        const next = { ...prev, [key]: { status, checkedAt: Date.now() } };
+        try {
+          localStorage.setItem(VALIDATION_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // 存储失败不影响本次展示
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  // 复制反馈：记录刚复制过的字段 id（`${key}-api` / `${key}-detail`）
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const copyText = async (text: string, fieldId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldId);
+      setTimeout(() => setCopiedField(null), 1500);
+    } catch {
+      showError('复制失败，请手动复制', showAlert);
+    }
+  };
+
   // 导入导出相关状态
   const [importExportModal, setImportExportModal] = useState<{
     isOpen: boolean;
@@ -2780,10 +2842,20 @@ const VideoSourceConfig = ({
       return;
     }
 
-    withLoading(`deleteSource_${key}`, () =>
-      callSourceApi({ action: 'delete', key }),
-    ).catch(() => {
-      console.error('操作失败', 'delete', key);
+    // 删除属于不可恢复操作，先弹二次确认
+    setConfirmModal({
+      isOpen: true,
+      title: '确认删除视频源',
+      message: `确定要删除视频源「${target.name}」（key: ${key}）吗？\n\n此操作不可恢复！`,
+      onConfirm: () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        withLoading(`deleteSource_${key}`, () =>
+          callSourceApi({ action: 'delete', key }),
+        ).catch(() => {
+          console.error('操作失败', 'delete', key);
+        });
+      },
+      onCancel: () => setConfirmModal((prev) => ({ ...prev, isOpen: false })),
     });
   };
 
@@ -2947,6 +3019,10 @@ const VideoSourceConfig = ({
 
               case 'source_result':
               case 'source_error':
+                // 最终结果写入持久化存储（带检测时间）
+                if (data.status && data.status !== 'validating') {
+                  savePersistedValidation(data.source, data.status);
+                }
                 // 更新验证结果
                 setValidationResults((prev) => {
                   const existing = prev.find((r) => r.key === data.source);
@@ -3039,11 +3115,14 @@ const VideoSourceConfig = ({
     });
   };
 
-  // 一键选中失效视频源（状态为 no_results 或 invalid）
+  // 一键选中失效视频源（状态为 no_results 或 invalid，含历史持久化结果）
   const handleSelectInvalidSources = useCallback(() => {
-    const invalidKeys = validationResults
-      .filter((r) => r.status === 'no_results' || r.status === 'invalid')
-      .map((r) => r.key);
+    const invalidKeys = sources
+      .filter((s) => {
+        const v = persistedValidation[s.key];
+        return v && (v.status === 'no_results' || v.status === 'invalid');
+      })
+      .map((s) => s.key);
 
     if (invalidKeys.length === 0) {
       showAlert({
@@ -3062,14 +3141,15 @@ const VideoSourceConfig = ({
       message: `已选中 ${invalidKeys.length} 个失效或无法搜索的视频源`,
       timer: 3000,
     });
-  }, [validationResults, showAlert]);
+  }, [sources, persistedValidation, showAlert]);
 
-  // 获取失效视频源数量
+  // 获取失效视频源数量（含历史持久化结果）
   const invalidSourceCount = useMemo(() => {
-    return validationResults.filter(
-      (r) => r.status === 'no_results' || r.status === 'invalid',
-    ).length;
-  }, [validationResults]);
+    return sources.filter((s) => {
+      const v = persistedValidation[s.key];
+      return v && (v.status === 'no_results' || v.status === 'invalid');
+    }).length;
+  }, [sources, persistedValidation]);
 
   // 一键插入CSP模板
   const handleInsertCspTemplate = async () => {
@@ -3329,27 +3409,32 @@ const VideoSourceConfig = ({
     };
   };
 
-  // 获取有效性状态显示
+  // 获取有效性状态显示：检测中读实时状态，其余读持久化结果（带检测时间）
   const getValidationStatus = (sourceKey: string) => {
-    const result = validationResults.find((r) => r.key === sourceKey);
-    if (!result) return null;
+    const live = validationResults.find((r) => r.key === sourceKey);
+    if (live?.status === 'validating') {
+      return {
+        text: '检测中',
+        className:
+          'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300',
+        icon: '⟳',
+        message: live.message,
+        checkedAt: null as number | null,
+      };
+    }
 
-    switch (result.status) {
-      case 'validating':
-        return {
-          text: '检测中',
-          className:
-            'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300',
-          icon: '⟳',
-          message: result.message,
-        };
+    const persisted = persistedValidation[sourceKey];
+    if (!persisted) return null;
+
+    switch (persisted.status) {
       case 'valid':
         return {
           text: '有效',
           className:
             'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300',
           icon: '✓',
-          message: result.message,
+          message: '搜索正常',
+          checkedAt: persisted.checkedAt as number | null,
         };
       case 'no_results':
         return {
@@ -3357,7 +3442,8 @@ const VideoSourceConfig = ({
           className:
             'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300',
           icon: '⚠',
-          message: result.message,
+          message: '无法搜索到结果',
+          checkedAt: persisted.checkedAt as number | null,
         };
       case 'invalid':
         return {
@@ -3365,7 +3451,8 @@ const VideoSourceConfig = ({
           className:
             'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300',
           icon: '✗',
-          message: result.message,
+          message: '连接失败',
+          checkedAt: persisted.checkedAt as number | null,
         };
       default:
         return null;
@@ -3404,9 +3491,10 @@ const VideoSourceConfig = ({
             className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600'
           />
         </td>
+        {/* 第一列：名称 + Key（换行展示） */}
         <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100'>
           <div className='flex items-center space-x-2'>
-            <span>{source.name}</span>
+            <span className='font-medium'>{source.name}</span>
             {source.from === 'config' && (
               <span
                 className='px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
@@ -3416,56 +3504,63 @@ const VideoSourceConfig = ({
               </span>
             )}
           </div>
+          <div className='mt-0.5 text-xs text-gray-400 font-mono'>
+            {source.key}
+          </div>
         </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100'>
-          {source.key}
+        {/* 第二列：Api + Detail（换行、带 label 与复制按钮） */}
+        <td className='px-6 py-4 text-sm text-gray-900 dark:text-gray-100'>
+          <div className='space-y-1'>
+            <div className='flex items-center gap-1.5'>
+              <button
+                onClick={() => copyText(source.api, `${source.key}-api`)}
+                className='shrink-0 text-gray-400 hover:text-[color:var(--brand-color)] transition-colors'
+                title='复制 API 地址'
+              >
+                {copiedField === `${source.key}-api` ? (
+                  <Check className='w-3.5 h-3.5 text-orange-500' />
+                ) : (
+                  <Copy className='w-3.5 h-3.5' />
+                )}
+              </button>
+              <span className='shrink-0 text-xs text-gray-400'>Api:</span>
+              <span
+                className='truncate max-w-52 xl:max-w-72'
+                title={source.api}
+              >
+                {source.api}
+              </span>
+            </div>
+            <div className='flex items-center gap-1.5'>
+              {source.detail ? (
+                <button
+                  onClick={() =>
+                    copyText(source.detail || '', `${source.key}-detail`)
+                  }
+                  className='shrink-0 text-gray-400 hover:text-[color:var(--brand-color)] transition-colors'
+                  title='复制 Detail 地址'
+                >
+                  {copiedField === `${source.key}-detail` ? (
+                    <Check className='w-3.5 h-3.5 text-orange-500' />
+                  ) : (
+                    <Copy className='w-3.5 h-3.5' />
+                  )}
+                </button>
+              ) : (
+                <span className='w-3.5' />
+              )}
+              <span className='shrink-0 text-xs text-gray-400'>Detail:</span>
+              <span
+                className='truncate max-w-52 xl:max-w-72'
+                title={source.detail || '-'}
+              >
+                {source.detail || '-'}
+              </span>
+            </div>
+          </div>
         </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-48 truncate'
-          title={source.api}
-        >
-          {source.api}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-32 truncate'
-          title={source.detail || '-'}
-        >
-          {source.detail || '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-4'>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              !source.disabled
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
-            }`}
-          >
-            {!source.disabled ? '启用中' : '已禁用'}
-          </span>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-center'>
-          <button
-            onClick={() => handleToggleAdult(source.key)}
-            disabled={isLoading(`toggleAdult_${source.key}`)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-              source.is_adult
-                ? 'bg-linear-to-r from-red-500 to-pink-500'
-                : 'bg-gray-300 dark:bg-gray-600'
-            } ${
-              isLoading(`toggleAdult_${source.key}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : 'cursor-pointer hover:opacity-80'
-            }`}
-            title={source.is_adult ? '成人资源' : '普通资源'}
-          >
-            <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                source.is_adult ? 'translate-x-5' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-4'>
+        {/* 第三列：有效性（持久化结果 + 最后检测时间） */}
+        <td className='px-6 py-4 whitespace-nowrap'>
           {(() => {
             const status = getValidationStatus(source.key);
             if (!status) {
@@ -3476,31 +3571,44 @@ const VideoSourceConfig = ({
               );
             }
             return (
-              <span
-                className={`px-2 py-1 text-xs rounded-full ${status.className}`}
-                title={status.message}
-              >
-                {status.icon} {status.text}
-              </span>
+              <div>
+                <span
+                  className={`px-2 py-1 text-xs rounded-full ${status.className}`}
+                  title={status.message}
+                >
+                  {status.icon} {status.text}
+                </span>
+                {status.checkedAt && (
+                  <div className='mt-1.5 text-[10px] text-gray-400'>
+                    {formatRelativeTime(status.checkedAt)}检测
+                  </div>
+                )}
+              </div>
             );
           })()}
         </td>
+        {/* 第四列：是否启用（TDesign Switch，可操作也展示状态） */}
+        <td className='px-6 py-4 whitespace-nowrap text-center'>
+          <Switch
+            size='large'
+            label={['启用', '禁用']}
+            value={!source.disabled}
+            loading={isLoading(`toggleSource_${source.key}`)}
+            onChange={() => handleToggleEnable(source.key)}
+          />
+        </td>
+        {/* 第五列：是否成人资源（TDesign Switch） */}
+        <td className='px-6 py-4 whitespace-nowrap text-center'>
+          <Switch
+            size='large'
+            label={['是', '否']}
+            value={!!source.is_adult}
+            loading={isLoading(`toggleAdult_${source.key}`)}
+            onChange={() => handleToggleAdult(source.key)}
+          />
+        </td>
+        {/* 第六列：操作（仅 编辑 / 删除，删除有二次确认） */}
         <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
-          <button
-            onClick={() => handleToggleEnable(source.key)}
-            disabled={isLoading(`toggleSource_${source.key}`)}
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
-              !source.disabled
-                ? buttonStyles.roundedDanger
-                : buttonStyles.roundedSuccess
-            } transition-colors ${
-              isLoading(`toggleSource_${source.key}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
-          >
-            {!source.disabled ? '禁用' : '启用'}
-          </button>
           <button
             onClick={() => handleStartEdit(source)}
             className={buttonStyles.roundedPrimary}
@@ -3512,7 +3620,7 @@ const VideoSourceConfig = ({
             <button
               onClick={() => handleDelete(source.key)}
               disabled={isLoading(`deleteSource_${source.key}`)}
-              className={`${buttonStyles.roundedSecondary} ${
+              className={`${buttonStyles.roundedDanger} ${
                 isLoading(`deleteSource_${source.key}`)
                   ? 'opacity-50 cursor-not-allowed'
                   : ''
@@ -4080,25 +4188,19 @@ const VideoSourceConfig = ({
                   />
                 </th>
                 <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  名称
+                  名称｜Key
                 </th>
                 <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  Key
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  API 地址
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  Detail 地址
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  状态
-                </th>
-                <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  成人资源
+                  API / Detail
                 </th>
                 <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                   有效性
+                </th>
+                <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  是否启用
+                </th>
+                <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  是否成人资源
                 </th>
                 <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                   操作

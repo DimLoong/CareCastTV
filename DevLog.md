@@ -242,6 +242,28 @@ admin/page.tsx 由 9520 行瘦身到约 6100 行。
 - typecheck / eslint / next build 全部通过
 - 冒烟（PASSWORD=test123）：/、/settings、/care-admin、/admin、/login 均 200；/settings 左侧三 tab + brand 渐变类渲染正确；首页与登录页 slogan 渲染正确
 
+## 2026-07-17 — M2.4：视频源列表表格重构
+
+### 目标
+
+按新的信息密度要求重排视频源表格（管理员设置 → 视频源配置）：
+
+1. 第一列「名称｜Key」：名称与 key 同列换行展示（key 用等宽小字）
+2. 第二列「API / Detail」：两个地址同列换行、带 `Api:` / `Detail:` label，各自带复制按钮（点击后图标变 ✓ 1.5 秒）
+3. 第三列「有效性」：检测结果持久化到 localStorage（`carecasttv_source_validation`，key → {status, checkedAt}），刷新后仍可见，并显示相对检测时间（如「3 天前检测」）；「一键选中失效源」与失效计数也改为基于持久化结果
+4. 第四/五列「是否启用」「是否成人资源」：改为 TDesign 带文字 Switch（启用/禁用、是/否），点击即切换、切换中有 loading 态；原操作列里的 启用/禁用 按钮与自绘成人开关随之移除
+5. 第六列「操作」：仅保留 编辑 / 删除；删除弹二次确认对话框（复用组件内 confirmModal），系统预设源仍不可删除
+
+### 实现说明
+
+- admin 页首次引入 TDesign 组件（Switch）+ react-19 adapter；品牌色已由 M2.3 的 `--td-brand-*` 变量接管
+- `formatRelativeTime()`：分钟/小时/天分级，超过 30 天显示日期
+- 检测中状态仍走实时 SSE 流（validationResults），最终结果落地持久化存储
+
+### 验证
+
+- typecheck / eslint / next build 通过；冒烟 /admin 200、服务端无报错
+
 ### 后续待办
 
 - [ ] M2：关怀配置迁移到服务端存储（redis/upstash 模式下多设备共享）
