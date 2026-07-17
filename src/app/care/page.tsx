@@ -118,13 +118,13 @@ export default function CareHomePage() {
             <button
               autoFocus
               onClick={() => startPlayback(target)}
-              className='group flex items-center justify-center gap-4 w-full max-w-xl py-8 rounded-3xl bg-green-600 hover:bg-green-500 focus:bg-green-500 focus:outline-none focus:ring-8 focus:ring-green-300/50 shadow-2xl transition-colors'
+              className='brand-gradient-bg group flex items-center justify-center gap-4 w-full max-w-xl py-8 rounded-3xl hover:brightness-110 focus:outline-none focus:ring-8 focus:ring-orange-300/60 shadow-2xl transition-all'
             >
               <Play className='w-14 h-14 fill-current' />
               <span className='text-4xl sm:text-5xl font-bold'>
                 继续播放
                 {countdown !== null && countdown > 0 && (
-                  <span className='ml-4 text-green-100 tabular-nums'>
+                  <span className='ml-4 text-orange-100 tabular-nums'>
                     {countdown}
                   </span>
                 )}

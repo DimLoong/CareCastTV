@@ -103,7 +103,7 @@ function Toggle({
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
         />
-        <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
+        <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-[#ff6a00] transition-colors dark:bg-gray-600'></div>
         <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
       </div>
     </label>
@@ -127,7 +127,7 @@ function Dropdown({
         type='button'
         onClick={() => setOpen(!open)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className='w-full px-3 py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm text-left'
+        className='w-full px-3 py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm text-left'
       >
         {options.find((o) => o.value === value)?.label}
       </button>
@@ -149,13 +149,13 @@ function Dropdown({
               }}
               className={`w-full px-3 py-2.5 text-left text-sm transition-colors flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${
                 value === option.value
-                  ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                  ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
                   : 'text-gray-900 dark:text-gray-100'
               }`}
             >
               <span className='truncate'>{option.label}</span>
               {value === option.value && (
-                <Check className='w-4 h-4 text-green-600 shrink-0 ml-2' />
+                <Check className='w-4 h-4 text-orange-600 shrink-0 ml-2' />
               )}
             </button>
           ))}
@@ -400,7 +400,7 @@ export default function LocalSettingsPanel() {
                   }}
                   className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center gap-3 ${
                     isSelected
-                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                       : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 bg-white dark:bg-gray-800'
                   }`}
                 >
@@ -411,7 +411,7 @@ export default function LocalSettingsPanel() {
                     <span
                       className={`font-medium ${
                         isSelected
-                          ? 'text-green-700 dark:text-green-300'
+                          ? 'text-orange-700 dark:text-orange-300'
                           : 'text-gray-900 dark:text-gray-100'
                       }`}
                     >
@@ -421,7 +421,7 @@ export default function LocalSettingsPanel() {
                       {option.description}
                     </p>
                   </div>
-                  {isSelected && <Check className='w-5 h-5 text-green-500' />}
+                  {isSelected && <Check className='w-5 h-5 text-orange-500' />}
                 </button>
               );
             })}
@@ -473,7 +473,7 @@ export default function LocalSettingsPanel() {
             </h4>
             <input
               type='text'
-              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
               placeholder='例如: https://proxy.example.com/fetch?url='
               value={doubanProxyUrl}
               onChange={(e) => {
@@ -508,7 +508,7 @@ export default function LocalSettingsPanel() {
             </h4>
             <input
               type='text'
-              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
               placeholder='例如: https://proxy.example.com/fetch?url='
               value={doubanImageProxyUrl}
               onChange={(e) => {
@@ -554,7 +554,7 @@ export default function LocalSettingsPanel() {
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
             <input
               type='password'
-              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-800'
+              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-800'
               placeholder='新密码'
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -562,7 +562,7 @@ export default function LocalSettingsPanel() {
             />
             <input
               type='password'
-              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-800'
+              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-800'
               placeholder='确认新密码'
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -575,7 +575,7 @@ export default function LocalSettingsPanel() {
           <button
             onClick={handleSubmitChangePassword}
             disabled={passwordLoading || !newPassword || !confirmPassword}
-            className='px-4 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-white text-sm font-medium disabled:opacity-50 transition-colors'
+            className='px-4 py-2 rounded-xl brand-btn text-sm font-medium disabled:opacity-50 transition-colors'
           >
             {passwordLoading ? '修改中…' : '确认修改（修改后需重新登录）'}
           </button>

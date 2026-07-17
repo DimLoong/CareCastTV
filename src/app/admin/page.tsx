@@ -27,7 +27,6 @@ import {
   Check,
   CheckCircle,
   ChevronDown,
-  ChevronUp,
   Database,
   Download,
   ExternalLink,
@@ -48,7 +47,7 @@ import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 import DataMigration from '@/components/DataMigration';
 import type { ImportExportModalProps } from '@/components/ImportExportModal';
-import ManageTabs from '@/components/ManageTabs';
+import ManageLayout, { ManageSubTab } from '@/components/ManageLayout';
 import PageLayout from '@/components/PageLayout';
 
 const ImportExportModal = dynamic<ImportExportModalProps>(
@@ -58,9 +57,9 @@ const ImportExportModal = dynamic<ImportExportModalProps>(
 
 // 统一按钮样式系统
 const buttonStyles = {
-  // 主要操作按钮（蓝色）- 用于配置、设置、确认等
+  // 主要操作按钮（品牌橙）- 用于配置、设置、确认等关键操作
   primary:
-    'px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg transition-colors',
+    'brand-btn px-3 py-1.5 text-sm font-medium rounded-lg',
   // 成功操作按钮（绿色）- 用于添加、启用、保存等
   success:
     'px-3 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg transition-colors',
@@ -73,9 +72,9 @@ const buttonStyles = {
   // 警告操作按钮（黄色）- 用于批量禁用等
   warning:
     'px-3 py-1.5 text-sm font-medium bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-600 dark:hover:bg-yellow-700 text-white rounded-lg transition-colors',
-  // 小尺寸主要按钮
+  // 小尺寸主要按钮（品牌橙）
   primarySmall:
-    'px-2 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-md transition-colors',
+    'brand-btn px-2 py-1 text-xs font-medium rounded-md',
   // 小尺寸成功按钮
   successSmall:
     'px-2 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-md transition-colors',
@@ -90,7 +89,7 @@ const buttonStyles = {
     'px-2 py-1 text-xs font-medium bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-600 dark:hover:bg-yellow-700 text-white rounded-md transition-colors',
   // 圆角小按钮（用于表格操作）
   roundedPrimary:
-    'inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-200 transition-colors',
+    'inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/40 dark:hover:bg-orange-900/60 dark:text-orange-200 transition-colors',
   roundedSuccess:
     'inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-200 transition-colors',
   roundedDanger:
@@ -106,8 +105,8 @@ const buttonStyles = {
     'px-3 py-1.5 text-sm font-medium bg-gray-400 dark:bg-gray-600 cursor-not-allowed text-white rounded-lg transition-colors',
   disabledSmall:
     'px-2 py-1 text-xs font-medium bg-gray-400 dark:bg-gray-600 cursor-not-allowed text-white rounded-md transition-colors',
-  // 开关按钮样式
-  toggleOn: 'bg-green-600 dark:bg-green-600',
+  // 开关按钮样式（激活态用品牌橙）
+  toggleOn: 'bg-[#ff6a00] dark:bg-[#ff6a00]',
   toggleOff: 'bg-gray-200 dark:bg-gray-700',
   toggleThumb: 'bg-white',
   toggleThumbOn: 'translate-x-6',
@@ -336,44 +335,6 @@ interface CustomCategory {
   disabled?: boolean;
   from: 'config' | 'custom';
 }
-
-// 可折叠标签组件
-interface CollapsibleTabProps {
-  title: string;
-  icon?: React.ReactNode;
-  isExpanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}
-
-const CollapsibleTab = ({
-  title,
-  icon,
-  isExpanded,
-  onToggle,
-  children,
-}: CollapsibleTabProps) => {
-  return (
-    <div className='rounded-xl shadow-sm mb-4 overflow-hidden bg-white/80 backdrop-blur-md dark:bg-gray-800/50 dark:ring-1 dark:ring-gray-700'>
-      <button
-        onClick={onToggle}
-        className='w-full px-6 py-4 flex items-center justify-between bg-gray-50/70 dark:bg-gray-800/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 transition-colors'
-      >
-        <div className='flex items-center gap-3'>
-          {icon}
-          <h3 className='text-lg font-medium text-gray-900 dark:text-gray-100'>
-            {title}
-          </h3>
-        </div>
-        <div className='text-gray-500 dark:text-gray-400'>
-          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-        </div>
-      </button>
-
-      {isExpanded && <div className='px-6 py-4'>{children}</div>}
-    </div>
-  );
-};
 
 // 用户配置组件
 interface UserConfigProps {
@@ -5690,14 +5651,25 @@ function AdminPageClient() {
   const [role, setRole] = useState<'owner' | 'admin' | null>(null);
   const [storageMode, setStorageMode] = useState<'cloud' | 'local'>('cloud'); // 存储模式
   const [showResetConfigModal, setShowResetConfigModal] = useState(false);
-  const [expandedTabs, setExpandedTabs] = useState<{ [key: string]: boolean }>({
-    userConfig: false,
-    videoSource: false,
-    siteConfig: false,
-    categoryConfig: false,
-    configFile: false,
-    dataMigration: false,
-  });
+  // 电视端左右结构：当前激活的配置分区（左侧 tab 决定右侧内容）
+  const [activeSection, setActiveSection] = useState('videoSource');
+
+  // 左侧子 tab 列表（按角色过滤：配置文件/数据迁移仅站长可见）
+  const sections = useMemo<ManageSubTab[]>(() => {
+    const list: ManageSubTab[] = [
+      { key: 'videoSource', label: '视频源配置', icon: Video },
+      { key: 'siteConfig', label: '站点配置', icon: Settings },
+      { key: 'userConfig', label: '用户配置', icon: Users },
+      { key: 'categoryConfig', label: '分类配置', icon: FolderOpen },
+    ];
+    if (role === 'owner') {
+      list.push(
+        { key: 'configFile', label: '配置文件', icon: FileText },
+        { key: 'dataMigration', label: '数据迁移', icon: Database },
+      );
+    }
+    return list;
+  }, [role]);
 
   // localStorage 键名常量
   const LOCAL_CONFIG_KEY = 'carecasttv_admin_config';
@@ -5815,14 +5787,6 @@ function AdminPageClient() {
     fetchConfig(true);
   }, [fetchConfig]);
 
-  // 切换标签展开状态
-  const toggleTab = (tabKey: string) => {
-    setExpandedTabs((prev) => ({
-      ...prev,
-      [tabKey]: !prev[tabKey],
-    }));
-  };
-
   // 新增: 重置配置处理函数
   const handleResetConfig = () => {
     setShowResetConfigModal(true);
@@ -5914,9 +5878,12 @@ function AdminPageClient() {
     <PageLayout activePath='/admin'>
       <div className='px-2 sm:px-10 py-4 sm:py-8'>
         <div className='max-w-[95%] mx-auto'>
-          {/* 管理区域标签页导航 */}
-          <ManageTabs />
-
+          {/* 电视端左右结构：左侧 管理区主 tab + 本页子 tab，右侧内容 */}
+          <ManageLayout
+            subTabs={sections}
+            activeSubTab={activeSection}
+            onSubTabChange={setActiveSection}
+          >
           {/* 本地模式警告提示 */}
           {storageMode === 'local' && (
             <div className='mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800'>
@@ -5939,8 +5906,8 @@ function AdminPageClient() {
           )}
 
           {/* 标题 + 重置配置按钮 */}
-          <div className='flex items-center gap-2 mb-8'>
-            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+          <div className='flex items-center gap-2 mb-6'>
+            <h1 className='text-2xl font-bold brand-gradient-text inline-block'>
               管理员设置
             </h1>
             {config && role === 'owner' && (
@@ -5953,111 +5920,45 @@ function AdminPageClient() {
             )}
           </div>
 
-          {/* 配置文件标签 - 仅站长可见 */}
-          {role === 'owner' && (
-            <CollapsibleTab
-              title='配置文件'
-              icon={
-                <FileText
-                  size={20}
-                  className='text-gray-600 dark:text-gray-400'
-                />
-              }
-              isExpanded={expandedTabs.configFile}
-              onToggle={() => toggleTab('configFile')}
-            >
-              <ConfigFileComponent
-                config={config}
-                refreshConfig={fetchConfig}
-                storageMode={storageMode}
-                updateConfig={updateConfig}
-              />
-            </CollapsibleTab>
-          )}
-
-          {/* 站点配置标签 */}
-          <CollapsibleTab
-            title='站点配置'
-            icon={
-              <Settings
-                size={20}
-                className='text-gray-600 dark:text-gray-400'
-              />
-            }
-            isExpanded={expandedTabs.siteConfig}
-            onToggle={() => toggleTab('siteConfig')}
-          >
-            <SiteConfigComponent config={config} refreshConfig={fetchConfig} />
-          </CollapsibleTab>
-
-          <div className='space-y-4'>
-            {/* 用户配置标签 */}
-            <CollapsibleTab
-              title='用户配置'
-              icon={
-                <Users size={20} className='text-gray-600 dark:text-gray-400' />
-              }
-              isExpanded={expandedTabs.userConfig}
-              onToggle={() => toggleTab('userConfig')}
-            >
-              <UserConfig
-                config={config}
-                role={role}
-                refreshConfig={fetchConfig}
-              />
-            </CollapsibleTab>
-
-            {/* 视频源配置标签 */}
-            <CollapsibleTab
-              title='视频源配置'
-              icon={
-                <Video size={20} className='text-gray-600 dark:text-gray-400' />
-              }
-              isExpanded={expandedTabs.videoSource}
-              onToggle={() => toggleTab('videoSource')}
-            >
+          {/* 右侧内容：仅渲染当前激活分区 */}
+          <div className='rounded-xl shadow-sm bg-white/80 backdrop-blur-md dark:bg-gray-800/50 dark:ring-1 dark:ring-gray-700 px-4 sm:px-6 py-5'>
+            {activeSection === 'videoSource' && (
               <VideoSourceConfig
                 config={config}
                 refreshConfig={fetchConfig}
                 storageMode={storageMode}
                 updateConfig={updateConfig}
               />
-            </CollapsibleTab>
-
-
-
-            {/* 分类配置标签 */}
-            <CollapsibleTab
-              title='分类配置'
-              icon={
-                <FolderOpen
-                  size={20}
-                  className='text-gray-600 dark:text-gray-400'
-                />
-              }
-              isExpanded={expandedTabs.categoryConfig}
-              onToggle={() => toggleTab('categoryConfig')}
-            >
+            )}
+            {activeSection === 'siteConfig' && (
+              <SiteConfigComponent
+                config={config}
+                refreshConfig={fetchConfig}
+              />
+            )}
+            {activeSection === 'userConfig' && (
+              <UserConfig
+                config={config}
+                role={role}
+                refreshConfig={fetchConfig}
+              />
+            )}
+            {activeSection === 'categoryConfig' && (
               <CategoryConfig config={config} refreshConfig={fetchConfig} />
-            </CollapsibleTab>
-
-            {/* 数据迁移标签 - 仅站长可见 */}
-            {role === 'owner' && (
-              <CollapsibleTab
-                title='数据迁移'
-                icon={
-                  <Database
-                    size={20}
-                    className='text-gray-600 dark:text-gray-400'
-                  />
-                }
-                isExpanded={expandedTabs.dataMigration}
-                onToggle={() => toggleTab('dataMigration')}
-              >
-                <DataMigration onRefreshConfig={fetchConfig} />
-              </CollapsibleTab>
+            )}
+            {activeSection === 'configFile' && role === 'owner' && (
+              <ConfigFileComponent
+                config={config}
+                refreshConfig={fetchConfig}
+                storageMode={storageMode}
+                updateConfig={updateConfig}
+              />
+            )}
+            {activeSection === 'dataMigration' && role === 'owner' && (
+              <DataMigration onRefreshConfig={fetchConfig} />
             )}
           </div>
+          </ManageLayout>
         </div>
       </div>
 

@@ -201,7 +201,8 @@ function TopNavbar() {
                 // 【关键】使用本地状态判断激活，而非 URL
                 // 这是"乐观 UI"的核心：点击即变色，不等 URL
                 const active = activeTabKey === item.key;
-                const activeRingClass = 'ring-2 ring-purple-400/60';
+                // 激活态使用品牌橙焦点环
+                const activeRingClass = 'ring-2 ring-orange-400/70';
 
                 return (
                   <FastLink

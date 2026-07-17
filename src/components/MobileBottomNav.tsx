@@ -49,29 +49,30 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
 
   // CareCastTV 精简导航：只保留 首页 / 搜索 / 关怀管理
   const [navItems] = useState<NavItem[]>([
+    // 激活态统一使用品牌橙渐变（定义见 globals.css --brand-gradient）
     {
       icon: Home,
       label: '首页',
       href: '/',
-      activeGradient: 'bg-linear-to-r from-violet-500 to-purple-600',
+      activeGradient: 'brand-gradient-bg',
       activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-violet-500/20',
+      hoverBg: 'hover:bg-orange-500/20',
     },
     {
       icon: Search,
       label: '搜索',
       href: '/search',
-      activeGradient: 'bg-linear-to-r from-blue-500 to-cyan-500',
+      activeGradient: 'brand-gradient-bg',
       activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-blue-500/20',
+      hoverBg: 'hover:bg-orange-500/20',
     },
     {
       icon: HeartHandshake,
       label: '管理',
       href: '/care-admin',
-      activeGradient: 'bg-linear-to-r from-emerald-500 to-teal-500',
+      activeGradient: 'brand-gradient-bg',
       activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-emerald-500/20',
+      hoverBg: 'hover:bg-orange-500/20',
     },
   ]);
 

@@ -109,36 +109,39 @@ function HomeClient() {
       {/* Hero：品牌 + 快捷入口 */}
       <div className='relative pt-16 pb-8 sm:pt-24 sm:pb-12'>
         <div className='flex flex-col items-center justify-center text-center px-4 gap-6'>
-          <h1 className='text-5xl sm:text-7xl font-black tracking-tighter bg-linear-to-r from-green-500 via-emerald-500 to-teal-500 bg-clip-text text-transparent select-none'>
+          <h1 className='text-5xl sm:text-7xl font-black tracking-tighter brand-gradient-text select-none'>
             {siteName || 'CareCastTV'}
           </h1>
-          <p className='text-gray-500 dark:text-gray-400 text-base sm:text-lg'></p>
+          {/* Slogan：品牌橙渐变 */}
+          <p className='text-base sm:text-xl font-semibold brand-gradient-text'>
+            打开就能看 · 家人远程照护
+          </p>
 
           {/* 三个核心入口 */}
           <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl mt-2'>
             <CountdownOutlineButton
               strokeWidth={6}
               durationMs={8000}
-              ringColor='#4f8cff'
+              ringColor='#ff9a3d'
               delayMs={800}
-              className='bg-green-600 hover:bg-green-500 shadow-lg'
+              className='brand-gradient-bg shadow-lg'
             >
               <Link
                 href='/care'
-                className='flex flex-col items-center gap-3 p-6  text-white  transition-colors'
+                className='tv-focus flex flex-col items-center gap-3 p-6 text-white transition-colors'
               >
                 <Tv className='w-10 h-10' />
                 <span className='text-lg font-bold'>继续播放</span>
-                <span className='text-xs text-green-100'>
+                <span className='text-xs text-orange-100'>
                   倒计时结束自动续播
                 </span>
               </Link>
             </CountdownOutlineButton>
             <Link
               href='/care-admin'
-              className='flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-green-600/40 hover:border-green-500 text-gray-800 dark:text-gray-200 transition-colors'
+              className='tv-focus flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-orange-500/40 hover:border-orange-500 text-gray-800 dark:text-gray-200 transition-colors'
             >
-              <HeartHandshake className='w-10 h-10 text-green-600' />
+              <HeartHandshake className='w-10 h-10 text-[color:var(--brand-color)]' />
               <span className='text-lg font-bold'>关怀管理</span>
               <span className='text-xs text-gray-400'>
                 播放列表 · 策略 · 远程配置
@@ -146,7 +149,7 @@ function HomeClient() {
             </Link>
             <Link
               href='/search'
-              className='flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-400 text-gray-800 dark:text-gray-200 transition-colors'
+              className='tv-focus flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-orange-400 text-gray-800 dark:text-gray-200 transition-colors'
             >
               <Search className='w-10 h-10 text-gray-500' />
               <span className='text-lg font-bold'>搜索选片</span>
@@ -226,7 +229,7 @@ function HomeClient() {
             </p>
             <button
               onClick={() => handleCloseAnnouncement(announcement)}
-              className='w-full rounded-lg bg-green-600 hover:bg-green-500 px-4 py-3 text-white font-medium transition-colors'
+              className='brand-btn w-full rounded-lg px-4 py-3 font-medium'
             >
               我知道了
             </button>

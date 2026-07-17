@@ -15,12 +15,15 @@
 import {
   ArrowDown,
   ArrowUp,
+  Cloud,
   Copy,
   Download,
+  ListVideo,
   Play,
   Plus,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Trash2,
   Tv,
 } from 'lucide-react';
@@ -52,8 +55,15 @@ import { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 import { fetchRemoteConfigOnce } from '@/hooks/useCareRemoteConfig';
 
-import ManageTabs from '@/components/ManageTabs';
+import ManageLayout, { ManageSubTab } from '@/components/ManageLayout';
 import PageLayout from '@/components/PageLayout';
+
+// 页面内部分区（渲染在 ManageLayout 左侧 tab 下方）
+const CARE_SECTIONS: ManageSubTab[] = [
+  { key: 'playlist', label: '播放列表', icon: ListVideo },
+  { key: 'strategy', label: '播放策略', icon: SlidersHorizontal },
+  { key: 'remote', label: '远程配置', icon: Cloud },
+];
 
 /** 播放记录摘要：用于在播放列表项上显示观看进度 */
 type RecordMap = Record<
@@ -62,6 +72,8 @@ type RecordMap = Record<
 >;
 
 export default function CareAdminPage() {
+  // 当前激活的内部分区（电视端左右结构：左 tab / 右内容）
+  const [activeSection, setActiveSection] = useState('playlist');
   const [config, setConfig] = useState<CareConfig | null>(null);
   const [playlist, setPlaylist] = useState<CarePlaylist | null>(null);
   const [remoteState, setRemoteState] = useState<CareRemoteState | null>(null);
@@ -201,11 +213,16 @@ export default function CareAdminPage() {
 
   return (
     <PageLayout activePath='/care-admin'>
-      <div className='max-w-4xl mx-auto px-4 py-8 space-y-8'>
-        <ManageTabs />
+      <div className='max-w-6xl mx-auto px-4 py-8'>
+        <ManageLayout
+          subTabs={CARE_SECTIONS}
+          activeSubTab={activeSection}
+          onSubTabChange={setActiveSection}
+        >
+        <div className='space-y-8'>
         <header className='flex flex-wrap items-center justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+            <h1 className='text-2xl font-bold brand-gradient-text inline-block'>
               关怀模式管理
             </h1>
             <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>
@@ -214,7 +231,7 @@ export default function CareAdminPage() {
           </div>
           <button
             onClick={enterCareMode}
-            className='flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 text-white font-semibold shadow transition-colors'
+            className='brand-btn flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold'
           >
             <Tv className='w-5 h-5' />
             进入老人视图
@@ -222,6 +239,7 @@ export default function CareAdminPage() {
         </header>
 
         {/* ------------------------- 策略设置 ------------------------- */}
+        {activeSection === 'strategy' && (
         <section className='rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-6 space-y-5'>
           <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             播放策略
@@ -238,7 +256,7 @@ export default function CareAdminPage() {
               type='checkbox'
               checked={config.careModeEnabled}
               onChange={(e) => updateConfig({ careModeEnabled: e.target.checked })}
-              className='w-5 h-5 accent-green-600'
+              className='w-5 h-5 accent-[#ff6a00]'
             />
           </label>
 
@@ -301,7 +319,7 @@ export default function CareAdminPage() {
               type='checkbox'
               checked={config.autoAdvance}
               onChange={(e) => updateConfig({ autoAdvance: e.target.checked })}
-              className='w-5 h-5 accent-green-600'
+              className='w-5 h-5 accent-[#ff6a00]'
             />
           </label>
 
@@ -318,12 +336,14 @@ export default function CareAdminPage() {
               onChange={(e) =>
                 saveCarePlaylist({ ...playlist, loop: e.target.checked })
               }
-              className='w-5 h-5 accent-green-600'
+              className='w-5 h-5 accent-[#ff6a00]'
             />
           </label>
         </section>
+        )}
 
         {/* ------------------------- 播放列表 ------------------------- */}
+        {activeSection === 'playlist' && (
         <section className='rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-6 space-y-4'>
           <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             播放列表（按顺序连播）
@@ -343,7 +363,7 @@ export default function CareAdminPage() {
                     key={item.id}
                     className={`flex items-center gap-3 p-3 rounded-xl border ${
                       isCurrent
-                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                        ? 'border-[color:var(--brand-color)] bg-orange-50 dark:bg-orange-950/30'
                         : 'border-gray-200 dark:border-gray-800'
                     }`}
                   >
@@ -361,7 +381,7 @@ export default function CareAdminPage() {
                       <p className='font-medium text-gray-900 dark:text-gray-100 truncate'>
                         {item.title}
                         {isCurrent && (
-                          <span className='ml-2 text-xs px-2 py-0.5 rounded-full bg-green-600 text-white'>
+                          <span className='ml-2 text-xs px-2 py-0.5 rounded-full brand-gradient-bg'>
                             当前
                           </span>
                         )}
@@ -484,7 +504,7 @@ export default function CareAdminPage() {
                       <button
                         onClick={() => addToPlaylist(r)}
                         disabled={added}
-                        className='flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+                        className='brand-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium disabled:cursor-not-allowed'
                       >
                         <Plus className='w-3.5 h-3.5' />
                         {added ? '已添加' : '添加'}
@@ -496,8 +516,10 @@ export default function CareAdminPage() {
             )}
           </div>
         </section>
+        )}
 
         {/* ------------------------- 远程配置 ------------------------- */}
+        {activeSection === 'remote' && (
         <section className='rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-6 space-y-5'>
           <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             远程配置（GitHub）
@@ -513,7 +535,7 @@ export default function CareAdminPage() {
               type='checkbox'
               checked={config.remote.enabled}
               onChange={(e) => updateRemote({ enabled: e.target.checked })}
-              className='w-5 h-5 accent-green-600'
+              className='w-5 h-5 accent-[#ff6a00]'
             />
           </label>
 
@@ -608,6 +630,9 @@ export default function CareAdminPage() {
             </p>
           )}
         </section>
+        )}
+        </div>
+        </ManageLayout>
       </div>
     </PageLayout>
   );

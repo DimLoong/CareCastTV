@@ -205,9 +205,45 @@ admin/page.tsx 由 9520 行瘦身到约 6100 行。
 - typecheck / eslint / next build 通过；/settings 路由正常生成
 - 冒烟测试：/settings、/care-admin、/admin 均 200，三个标签在页面上渲染正确
 
+## 2026-07-17 — M2.3：橙色品牌化 + 电视端左右结构布局
+
+### 目标
+
+1. 品牌色改为橙色，并定义全局橙色渐变；logo、slogan、重要标题用渐变，关键按钮用橙色
+2. TDesign 主题接管：组件库品牌色全局翻橙，暗色模式跟随全站 .dark 主题
+3. 管理区域按电视端 UI 逻辑改为左右结构：左侧纵向 tab、右侧对应内容
+
+### 设计决策
+
+- **品牌色全局唯一定义处**：`globals.css` 中 `--brand-color: #ff6a00`、`--brand-gradient: linear-gradient(135deg, #ffb347 → #ff7a1a → #ff4d00)`。改这里即全站换色
+- **TDesign 接管方式**：覆盖 `--td-brand-color-1..10` 系列变量（亮/暗两套），TDesign 组件（含用户自建的 CountdownOutlineButton）无需改代码即变橙；新增 `TDesignThemeSync` 监听 `<html>` 的 `.dark` 类并同步 `theme-mode` 属性，解决 next-themes 与 TDesign 暗色机制不一致的问题
+- **工具类**：`.brand-gradient-text`（渐变文字）、`.brand-gradient-bg`（渐变底）、`.brand-btn`（关键按钮：渐变+阴影+按压反馈）、`.tv-focus`（遥控器 D-pad 焦点环，:focus-visible 3px 橙色描边）
+- **电视端左右结构**：`ManageLayout` 取代 ManageTabs——左侧纵向列表含两层：主 tab（关怀管理/本地设置/管理员设置，路由跳转）+ 当前页子 tab（页面内分区，state 切换）；移动端退化为顶部横向 pill
+
+### 改动
+
+| 文件 | 说明 |
+| --- | --- |
+| `globals.css` | 品牌色系统（见上）；`.deco-brand`（导航 logo）与 `.neon-text`（登录页 logo）渐变翻橙；新增 `.chip-care-admin` 橙色光晕（此前缺失定义） |
+| `components/TDesignThemeSync.tsx`（新增） | .dark ↔ theme-mode 同步器，挂在根布局 |
+| `components/ManageLayout.tsx`（新增） | 电视端左右结构布局组件，替代 ManageTabs（已删除） |
+| `app/admin/page.tsx` | 折叠面板（CollapsibleTab）整体移除，改为左子 tab / 右内容：视频源/站点/用户/分类（+站长专属：配置文件/数据迁移），一次只渲染激活分区；buttonStyles.primary 系翻橙、toggleOn 翻橙 |
+| `app/care-admin/page.tsx` | 接入 ManageLayout，内部分为 播放列表/播放策略/远程配置 三个子 tab；主按钮与选中态翻橙 |
+| `app/settings/page.tsx` | 接入 ManageLayout |
+| `app/page.tsx` | logo 渐变翻橙；新增 slogan「打开就能看 · 家人远程照护」（渐变）；三个入口卡片与倒计时按钮翻橙 |
+| `app/login/page.tsx` | logo 下新增 slogan；登录按钮 `.brand-btn`；输入框焦点环/注册链接翻橙 |
+| `app/care/page.tsx`、`care/verify/page.tsx` | 老人端大按钮改橙色渐变，焦点环改橙（保留大尺寸 ring 便于电视遥控可见） |
+| `components/TopNavbar.tsx` / `MobileBottomNav.tsx` | 激活态统一品牌橙（顶栏橙色 ring、底栏橙渐变胶囊） |
+| `components/LocalSettingsPanel.tsx` | 开关/选中卡片/焦点环等激活色翻橙 |
+| `app/layout.tsx` | 顶部进度条颜色翻橙；挂载 TDesignThemeSync |
+
+### 验证
+
+- typecheck / eslint / next build 全部通过
+- 冒烟（PASSWORD=test123）：/、/settings、/care-admin、/admin、/login 均 200；/settings 左侧三 tab + brand 渐变类渲染正确；首页与登录页 slogan 渲染正确
+
 ### 后续待办
 
-- [ ] typecheck / lint / 手动验证（本阶段末尾执行）
 - [ ] M2：关怀配置迁移到服务端存储（redis/upstash 模式下多设备共享）
 - [ ] M2：老人端状态上报（当前在看什么、播放器状态），供家属远程查看
 - [ ] M3：播放列表支持"从第 x 集到第 y 集"的区间播放

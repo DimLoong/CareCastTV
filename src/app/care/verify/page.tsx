@@ -157,7 +157,7 @@ export default function CareVerifyPage() {
           </button>
           <button
             onClick={() => submit(input)}
-            className='py-5 rounded-2xl bg-green-600 hover:bg-green-500 focus:outline-none focus:ring-4 focus:ring-green-300/50 text-2xl font-bold transition-colors'
+            className='brand-gradient-bg py-5 rounded-2xl hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-orange-300/60 text-2xl font-bold transition-all'
           >
             确定
           </button>

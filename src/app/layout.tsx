@@ -17,6 +17,7 @@ import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
 import NavbarGate from '../components/NavbarGate';
 import ParticleBackground from '../components/ParticleBackground';
 import { SiteProvider } from '../components/SiteProvider';
+import TDesignThemeSync from '../components/TDesignThemeSync';
 import { ThemeProvider } from '../components/ThemeProvider';
 import TopNavbar from '../components/TopNavbar';
 
@@ -118,9 +119,9 @@ export default async function RootLayout({
       <body
         className={`${inter.className} min-h-screen bg-white text-gray-900 dark:bg-black dark:text-gray-200 bg-animated-gradient`}
       >
-        {/* 顶部进度条：点击链接瞬间显示，消除"死机感" */}
+        {/* 顶部进度条：点击链接瞬间显示，消除"死机感"（品牌橙） */}
         <NextTopLoader
-          color='#ec4899'
+          color='#ff7a1a'
           initialPosition={0.08}
           crawlSpeed={200}
           height={3}
@@ -128,7 +129,7 @@ export default async function RootLayout({
           showSpinner={false}
           easing='ease'
           speed={200}
-          shadow='0 0 10px #ec4899,0 0 5px #ec4899'
+          shadow='0 0 10px #ff7a1a,0 0 5px #ff7a1a'
         />
         <GlobalCacheProvider>
           <ThemeProvider
@@ -137,6 +138,8 @@ export default async function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            {/* 同步 TDesign 的 theme-mode 属性，使组件库跟随 .dark 主题 */}
+            <TDesignThemeSync />
             <DownloadManagerProvider>
               <SiteProvider siteName={siteName} announcement={announcement}>
                 {/* 关怀模式路由门禁：开启后未验证时所有页面重定向到 /care */}
