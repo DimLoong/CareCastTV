@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         true,
       ); // localstorage 模式包含 password
       const expires = new Date();
-      expires.setDate(expires.getDate() + 365); // CareCastTV：老人电视场景，登录一次保持一年
+      expires.setDate(expires.getDate() + 400); // CareCastTV：写满浏览器上限 400 天，配合前端滑动续期实现永久免登录
 
       response.cookies.set('auth', cookieValue, {
         path: '/',
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
         false,
       ); // 数据库模式不包含 password
       const expires = new Date();
-      expires.setDate(expires.getDate() + 365); // CareCastTV：老人电视场景，登录一次保持一年
+      expires.setDate(expires.getDate() + 400); // CareCastTV：写满浏览器上限 400 天，配合前端滑动续期实现永久免登录
 
       response.cookies.set('auth', cookieValue, {
         path: '/',
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
         false,
       ); // 数据库模式不包含 password
       const expires = new Date();
-      expires.setDate(expires.getDate() + 365); // CareCastTV：老人电视场景，登录一次保持一年
+      expires.setDate(expires.getDate() + 400); // CareCastTV：写满浏览器上限 400 天，配合前端滑动续期实现永久免登录
 
       response.cookies.set('auth', cookieValue, {
         path: '/',

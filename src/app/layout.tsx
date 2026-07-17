@@ -10,6 +10,7 @@ import { getConfig } from '@/lib/config';
 import { DownloadManagerProvider } from '@/contexts/DownloadManagerContext';
 import { GlobalCacheProvider } from '@/contexts/GlobalCacheContext';
 
+import AuthCookieRefresher from '../components/AuthCookieRefresher';
 import CareGate from '../components/CareGate';
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
 import NavbarGate from '../components/NavbarGate';
@@ -140,6 +141,8 @@ export default async function RootLayout({
               <SiteProvider siteName={siteName} announcement={announcement}>
                 {/* 关怀模式路由门禁：开启后未验证时所有页面重定向到 /care */}
                 <CareGate />
+                {/* 登录 cookie 滑动续期：每次打开应用续期 400 天，实现永久免登录 */}
+                <AuthCookieRefresher />
                 <ParticleBackground />
                 <NavbarGate>
                   <TopNavbar />

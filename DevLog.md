@@ -161,6 +161,22 @@ admin/page.tsx 由 9520 行瘦身到约 6100 行。
 | `vercel.json` | 移除失效 rewrite |
 | `README.md` | 新增：PASSWORD 必要性与三种环境配置方法、全部环境变量表、Vercel 部署六步流程（含 Upstash）、Docker 部署、壳 APK 入口 |
 
+---
+
+## 2026-07-17 — M2.1：永久免登录 + 播放源配置文档
+
+### 改动
+
+1. **永久免登录**：Chromium（含电视 WebView）对 cookie 有 400 天硬上限，无法写"永久"cookie。
+   方案：登录 cookie 写满 400 天（`api/login/route.ts` 三处），并新增
+   `components/AuthCookieRefresher.tsx`（挂载于 layout）在每次打开应用时把 auth cookie
+   原值重写续期 400 天——滑动续期，只要设备一年内打开过一次即永不过期。
+2. **播放源配置文档**（README 新增章节）：
+   - 说明本项目吃苹果 CMS V10 采集接口（`/api.php/provide/vod`），
+     TVBox 格式配置（饭太硬等）不能直接用，但其 `sites` 中 `type:1` 条目的 api 可摘出使用
+   - key/name/api/detail/is_adult 字段含义（key 即关怀播放列表与 carecast.json 的 `source`）
+   - 配置文件批量导入 JSON 模板 + 单个添加两种方法
+
 ### 后续待办
 
 - [ ] typecheck / lint / 手动验证（本阶段末尾执行）
