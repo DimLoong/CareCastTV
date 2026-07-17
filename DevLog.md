@@ -125,6 +125,42 @@
 
 admin/page.tsx 由 9520 行瘦身到约 6100 行。
 
+---
+
+## 2026-07-17 — M2：部署文档 + 安卓电视壳 APK
+
+### 目标
+
+1. 说清 `PASSWORD` 环境变量的必要性与各环境配置方法（写入 README）
+2. 检查并适配 Vercel 部署，流程写入 README
+3. 生成安卓电视 WebView 壳 APK 工程，支持云端出包
+
+### 关键决策与发现
+
+| 事项 | 结论 |
+| --- | --- |
+| `PASSWORD` 是否必要 | 必要。应用代理第三方资源站，公网裸奔会被滥用；中间件在无密码时锁定全站是正确设计，予以保留 |
+| 登录 cookie 有效期 | 由 7 天延长到 **365 天**（`api/login/route.ts` 三处）。老人电视场景不能每周重新登录 |
+| Vercel + localstorage 模式的坑 | Serverless 内存不持久，播放源配置冷启动即丢 → **Vercel 部署必须搭配 Upstash（免费）**，README 已写明 |
+| vercel.json 清理 | 移除指向已删除 `/api/proxy/*` 的 rewrite；cron（每日 1 点）保留，Hobby 计划兼容 |
+| 壳 APK 技术选型 | 纯 Android WebView（Kotlin，零第三方依赖，APK 约 100KB），不用 Capacitor——更小更可控，且能实现开机自启 |
+
+### 新增文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `tvshell/` | Android TV 壳工程：`MainActivity.kt`（全屏 WebView、自动播放放行、Cookie 持久化、返回键防误触）、`BootReceiver.kt`（开机自启）、Manifest（Leanback + 普通桌面双入口、允许 http 局域网地址）、图标与 TV banner |
+| `.github/workflows/build-apk.yml` | GitHub Actions 云端构建：Actions 页手动触发、可输入服务器地址、产物 Artifacts 下载；tvshell 目录变更时也自动构建 |
+| `tvshell/README.md` | 壳应用构建（云端/本地两种方式）、电视安装、开机自启授权等说明 |
+
+### 修改文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `src/app/api/login/route.ts` | 登录 cookie 有效期 7 天 → 365 天 |
+| `vercel.json` | 移除失效 rewrite |
+| `README.md` | 新增：PASSWORD 必要性与三种环境配置方法、全部环境变量表、Vercel 部署六步流程（含 Upstash）、Docker 部署、壳 APK 入口 |
+
 ### 后续待办
 
 - [ ] typecheck / lint / 手动验证（本阶段末尾执行）
