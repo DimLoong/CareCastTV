@@ -1,23 +1,3 @@
-export interface DanmuCustomNode {
-  id: string;
-  name: string;
-  url: string;
-  token: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface PanSouNode {
-  id: string;
-  name: string;
-  serverUrl: string;
-  token: string;
-  username: string;
-  password: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface AdminConfig {
   ConfigSubscribtion: {
     URL: string;
@@ -67,36 +47,6 @@ export interface AdminConfig {
     from: 'config' | 'custom';
     disabled?: boolean;
   }[];
-  LiveConfig?: {
-    key: string;
-    name: string;
-    url: string;
-    ua?: string;
-    epg?: string;
-    from: 'config' | 'custom';
-    channelNumber?: number;
-    disabled?: boolean;
-  }[];
-  DanmuConfig?: {
-    enabled: boolean;
-    serverUrl: string;
-    token: string;
-    platform: string;
-    sourceOrder: string;
-    mergeSourcePairs: string;
-    bilibiliCookie: string;
-    convertTopBottomToScroll: boolean;
-    convertColor: 'default' | 'white' | 'color';
-    danmuLimit: number;
-    blockedWords: string;
-    danmuOutputFormat: 'json' | 'xml';
-    simplifiedTraditional: 'default' | 'simplified' | 'traditional';
-    customNodes?: DanmuCustomNode[];
-  };
-  PanSouConfig?: {
-    activeNodeId: string;
-    nodes: PanSouNode[];
-  };
 }
 
 export interface AdminConfigResult {

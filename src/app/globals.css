@@ -197,7 +197,7 @@ body {
   }
 }
 
-/* New DecoTV Brand Style */
+/* New CareCastTV Brand Style */
 .deco-brand {
   background: linear-gradient(
     135deg,
@@ -1025,7 +1025,7 @@ div[data-media-provider] video {
   }
 }
 
-/* DecoTV 炫酷动画效果 */
+/* CareCastTV 炫酷动画效果 */
 @keyframes blob {
   0%,
   100% {

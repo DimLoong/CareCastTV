@@ -3,7 +3,7 @@
 
 import { DownloadTask } from '@/lib/download-types';
 
-const DB_NAME = 'decotv-downloads';
+const DB_NAME = 'carecasttv-downloads';
 const DB_VERSION = 1;
 const TASK_STORE = 'tasks';
 const SEGMENT_STORE = 'segments';

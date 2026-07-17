@@ -11,7 +11,7 @@ export const CURRENT_VERSION = CURRENT_SEMANTIC_VERSION;
 // 这是最后的回退值,确保即使所有文件读取都失败也能有一个基准
 export const BUILD_TIMESTAMP = '20260212190112';
 
-const DEFAULT_UPDATE_REPO = 'Decohererk/DecoTV';
+const DEFAULT_UPDATE_REPO = 'DimLoong/CareCastTV';
 const UPDATE_REPO = process.env.NEXT_PUBLIC_UPDATE_REPO || DEFAULT_UPDATE_REPO;
 const UPDATE_REF = process.env.NEXT_PUBLIC_UPDATE_REF || 'main';
 const VERSION_TIMESTAMP_REGEX = /^\d{14}$/;
@@ -269,7 +269,7 @@ export async function checkForUpdates(currentTimestamp: string): Promise<{
           `构建时间: ${formatVersionTimestamp(remoteTimestamp)}`,
           '点击前往仓库查看更新详情',
         ],
-        downloadUrl: 'https://github.com/Decohererk/DecoTV/releases',
+        downloadUrl: 'https://github.com/DimLoong/CareCastTV/releases',
       };
 
       return {

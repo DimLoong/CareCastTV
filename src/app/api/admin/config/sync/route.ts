@@ -52,7 +52,6 @@ export async function POST(request: NextRequest) {
       success: true,
       message: '配置同步成功',
       sourceCount: config.SourceConfig?.length || 0,
-      liveCount: config.LiveConfig?.length || 0,
     });
   } catch (error) {
     console.error('[Config Sync] 同步配置失败:', error);

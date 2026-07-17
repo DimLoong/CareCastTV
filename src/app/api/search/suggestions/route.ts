@@ -93,8 +93,8 @@ async function generateSuggestions(
       new Set(
         results
           .filter((r: any) => {
-            // 成人内容过滤
-            if (!config.SiteConfig.DisableYellowFilter) {
+            // 成人内容过滤（CareCastTV 硬性开启）
+            {
               if (firstSite.is_adult) return false;
               const typeName = r.type_name || '';
               if (yellowWords.some((word: string) => typeName.includes(word)))

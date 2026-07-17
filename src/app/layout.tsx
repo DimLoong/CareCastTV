@@ -10,6 +10,7 @@ import { getConfig } from '@/lib/config';
 import { DownloadManagerProvider } from '@/contexts/DownloadManagerContext';
 import { GlobalCacheProvider } from '@/contexts/GlobalCacheContext';
 
+import CareGate from '../components/CareGate';
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
 import NavbarGate from '../components/NavbarGate';
 import ParticleBackground from '../components/ParticleBackground';
@@ -24,14 +25,15 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   const config = await getConfig();
-  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'DecoTV';
+  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'CareCastTV';
   if (storageType !== 'localstorage') {
     siteName = config.SiteConfig.SiteName;
   }
 
   return {
     title: siteName,
-    description: '影视聚合',
+    description: 'CareCastTV —— 面向家庭老人的零操作自动续播电视应用',
+    authors: [{ name: 'DimLoong' }],
     manifest: '/manifest.json',
   };
 }
@@ -47,7 +49,7 @@ export default async function RootLayout({
 }) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
-  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'DecoTV';
+  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'CareCastTV';
   let announcement =
     process.env.ANNOUNCEMENT ||
     '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。';
@@ -59,7 +61,7 @@ export default async function RootLayout({
     process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE || 'cmliussss-cdn-tencent';
   let doubanImageProxy = process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '';
   let disableYellowFilter =
-    process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
+    false; // CareCastTV：成人内容过滤硬性开启
   let fluidSearch = process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false';
   let customCategories = [] as {
     name: string;
@@ -75,7 +77,6 @@ export default async function RootLayout({
     doubanProxy = config.SiteConfig.DoubanProxy;
     doubanImageProxyType = config.SiteConfig.DoubanImageProxyType;
     doubanImageProxy = config.SiteConfig.DoubanImageProxy;
-    disableYellowFilter = config.SiteConfig.DisableYellowFilter;
     customCategories = config.CustomCategories.filter(
       (category) => !category.disabled,
     ).map((category) => ({
@@ -137,6 +138,8 @@ export default async function RootLayout({
           >
             <DownloadManagerProvider>
               <SiteProvider siteName={siteName} announcement={announcement}>
+                {/* 关怀模式路由门禁：开启后未验证时所有页面重定向到 /care */}
+                <CareGate />
                 <ParticleBackground />
                 <NavbarGate>
                   <TopNavbar />

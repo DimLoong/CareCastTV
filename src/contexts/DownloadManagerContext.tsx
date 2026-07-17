@@ -53,7 +53,7 @@ function clampProgressPercent(value: number): number {
   return Math.min(100, Math.max(0, value));
 }
 
-export const DOWNLOAD_MANAGER_OPEN_EVENT = 'decotv:download-manager:open';
+export const DOWNLOAD_MANAGER_OPEN_EVENT = 'carecasttv:download-manager:open';
 
 interface DownloadRuntime {
   active: boolean;

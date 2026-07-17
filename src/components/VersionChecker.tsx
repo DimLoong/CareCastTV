@@ -219,7 +219,7 @@ export default function VersionChecker() {
 
             <a
               href={
-                remote.downloadUrl || 'https://github.com/Decohererk/DecoTV'
+                remote.downloadUrl || 'https://github.com/Decohererk/CareCastTV'
               }
               target='_blank'
               rel='noopener noreferrer'

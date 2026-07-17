@@ -1,23 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 'use client';
 
-import {
-  Cat,
-  Cloud,
-  Clover,
-  Film,
-  Home,
-  Radio,
-  Search,
-  Star,
-  Tv,
-} from 'lucide-react';
+import { HeartHandshake, Home, Search } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ComponentType, useCallback, useEffect, useRef, useState } from 'react';
-
-import SourceBrowserIcon from './icons/SourceBrowserIcon';
+import {
+  ComponentType,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 // 简单的 className 合并函数
 function cn(...classes: (string | boolean | undefined | null)[]): string {
@@ -55,8 +47,8 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   // 当前激活路径：优先使用传入的 activePath，否则回退到浏览器地址
   const currentActive = activePath ?? pathname;
 
-  // 导航项配置 - 包含渐变色映射
-  const [navItems, setNavItems] = useState<NavItem[]>([
+  // CareCastTV 精简导航：只保留 首页 / 搜索 / 关怀管理
+  const [navItems] = useState<NavItem[]>([
     {
       icon: Home,
       label: '首页',
@@ -74,84 +66,14 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       hoverBg: 'hover:bg-blue-500/20',
     },
     {
-      icon: SourceBrowserIcon,
-      label: '源浏览器',
-      href: '/source-browser',
+      icon: HeartHandshake,
+      label: '关怀管理',
+      href: '/care-admin',
       activeGradient: 'bg-linear-to-r from-emerald-500 to-teal-500',
       activeTextColor: 'text-white',
       hoverBg: 'hover:bg-emerald-500/20',
     },
-    {
-      icon: Cloud,
-      label: '网盘',
-      href: '/netdisk',
-      activeGradient: 'bg-linear-to-r from-sky-500 to-teal-500',
-      activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-sky-500/20',
-    },
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-      activeGradient: 'bg-linear-to-r from-pink-500 to-rose-500',
-      activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-pink-500/20',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-      activeGradient: 'bg-linear-to-r from-purple-500 to-indigo-500',
-      activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-purple-500/20',
-    },
-    {
-      icon: Cat,
-      label: '动漫',
-      href: '/douban?type=anime',
-      activeGradient: 'bg-linear-to-r from-emerald-400 to-teal-500',
-      activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-emerald-500/20',
-    },
-    {
-      icon: Clover,
-      label: '综艺',
-      href: '/douban?type=show',
-      activeGradient: 'bg-linear-to-r from-amber-400 to-orange-500',
-      activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-amber-500/20',
-    },
-    {
-      icon: Radio,
-      label: '直播',
-      href: '/live',
-      activeGradient: 'bg-linear-to-r from-red-500 to-pink-500',
-      activeTextColor: 'text-white',
-      hoverBg: 'hover:bg-red-500/20',
-    },
   ]);
-
-  // 动态添加自定义分类
-  useEffect(() => {
-    const runtimeConfig = (window as any).RUNTIME_CONFIG;
-    if (runtimeConfig?.CUSTOM_CATEGORIES?.length > 0) {
-      setNavItems((prevItems) => {
-        // 防止重复添加
-        if (prevItems.some((item) => item.label === '自定义')) return prevItems;
-        return [
-          ...prevItems,
-          {
-            icon: Star,
-            label: '自定义',
-            href: '/douban?type=custom',
-            activeGradient: 'bg-linear-to-r from-yellow-400 to-amber-500',
-            activeTextColor: 'text-white',
-            hoverBg: 'hover:bg-yellow-500/20',
-          },
-        ];
-      });
-    }
-  }, []);
 
   // 判断是否激活
   const isActive = useCallback(
@@ -170,21 +92,12 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       if (href === '/search' && decodedActive.startsWith('/search'))
         return true;
 
-      // 网盘页特殊处理
-      if (href === '/netdisk' && decodedActive.startsWith('/netdisk'))
+      // 关怀管理页
+      if (href === '/care-admin' && decodedActive.startsWith('/care-admin'))
         return true;
 
-      // 直播页特殊处理
-      if (href === '/live' && decodedActive.startsWith('/live')) return true;
-
-      // 豆瓣分类匹配
-      if (
-        typeMatch &&
-        decodedActive.startsWith('/douban') &&
-        decodedActive.includes(`type=${typeMatch}`)
-      ) {
-        return true;
-      }
+      // 保留 typeMatch 以兼容将来带 query 的导航项
+      void typeMatch;
 
       return false;
     },
