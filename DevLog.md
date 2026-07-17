@@ -177,6 +177,34 @@ admin/page.tsx 由 9520 行瘦身到约 6100 行。
    - key/name/api/detail/is_adult 字段含义（key 即关怀播放列表与 carecast.json 的 `source`）
    - 配置文件批量导入 JSON 模板 + 单个添加两种方法
 
+---
+
+## 2026-07-17 — M2.2：管理区域信息架构重构 + 视频源可编辑
+
+### 目标
+
+1. 导航精简为「首页 / 搜索 / 管理」三项；管理内以三个标签页组织：关怀管理、本地设置、管理员设置
+2. 用户头像面板只保留退出登录（原来塞在里面的设置/管理入口全部挪走）
+3. 视频源配置支持编辑（原来只能添加/删除/启停）
+
+### 改动
+
+| 文件 | 说明 |
+| --- | --- |
+| `components/ManageTabs.tsx`（新增） | 管理区域顶部标签栏：关怀管理 /care-admin、本地设置 /settings、管理员设置 /admin，按路由高亮 |
+| `components/LocalSettingsPanel.tsx`（新增） | 本地设置页面内容：豆瓣数据/图片代理、聚合搜索、优选测速、流式搜索、播放缓冲模式、恢复默认，外加下载管理入口、版本信息、修改密码（数据库模式非站长）。localStorage 键名与原实现兼容；原面板中的 IPTV 直连项随直播功能删除 |
+| `app/settings/page.tsx`（新增） | 管理 → 本地设置 页面（PageLayout + ManageTabs + LocalSettingsPanel） |
+| `components/UserMenu.tsx`（重写，1328→140 行） | 头像面板只保留：用户信息 + 退出登录 |
+| `components/TopNavbar.tsx` / `MobileBottomNav.tsx` | 第三项改为「管理」，/care-admin、/settings、/admin 三个路由都高亮该项 |
+| `app/care-admin/page.tsx`、`app/admin/page.tsx` | 页面顶部接入 ManageTabs |
+| `api/admin/source/route.ts` | 新增 `edit` 动作：更新 name/api/detail；key 不可改（被播放记录与关怀播放列表引用）；编辑过的源标记为 custom 防止被订阅配置覆盖 |
+| `app/admin/page.tsx`（视频源配置） | 每行新增「编辑」按钮，复用添加表单进入编辑模式（key 置灰、按钮变"保存修改"、成人开关隐藏）；本地模式 `updateSourceConfigLocally` 同步支持 edit |
+
+### 验证
+
+- typecheck / eslint / next build 通过；/settings 路由正常生成
+- 冒烟测试：/settings、/care-admin、/admin 均 200，三个标签在页面上渲染正确
+
 ### 后续待办
 
 - [ ] typecheck / lint / 手动验证（本阶段末尾执行）

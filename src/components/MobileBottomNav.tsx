@@ -67,7 +67,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
     },
     {
       icon: HeartHandshake,
-      label: '关怀管理',
+      label: '管理',
       href: '/care-admin',
       activeGradient: 'bg-linear-to-r from-emerald-500 to-teal-500',
       activeTextColor: 'text-white',
@@ -92,8 +92,13 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       if (href === '/search' && decodedActive.startsWith('/search'))
         return true;
 
-      // 关怀管理页
-      if (href === '/care-admin' && decodedActive.startsWith('/care-admin'))
+      // 管理区域：三个标签页都高亮"管理"
+      if (
+        href === '/care-admin' &&
+        (decodedActive.startsWith('/care-admin') ||
+          decodedActive.startsWith('/settings') ||
+          decodedActive.startsWith('/admin'))
+      )
         return true;
 
       // 保留 typeMatch 以兼容将来带 query 的导航项

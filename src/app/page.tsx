@@ -9,10 +9,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 
 'use client';
-
 import { HeartHandshake, Search, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
+import 'tdesign-react/lib/_util/react-19-adapter';
 
 import {
   clearAllFavorites,
@@ -23,6 +23,7 @@ import {
 
 import CapsuleSwitch from '@/components/CapsuleSwitch';
 import ContinueWatching from '@/components/ContinueWatching';
+import { CountdownOutlineButton } from '@/components/CountdownOutlineButton';
 import PageLayout from '@/components/PageLayout';
 import { useSite } from '@/components/SiteProvider';
 import VideoCard from '@/components/VideoCard';
@@ -111,22 +112,28 @@ function HomeClient() {
           <h1 className='text-5xl sm:text-7xl font-black tracking-tighter bg-linear-to-r from-green-500 via-emerald-500 to-teal-500 bg-clip-text text-transparent select-none'>
             {siteName || 'CareCastTV'}
           </h1>
-          <p className='text-gray-500 dark:text-gray-400 text-base sm:text-lg'>
-            为家里老人打造的零操作自动续播电视
-          </p>
+          <p className='text-gray-500 dark:text-gray-400 text-base sm:text-lg'></p>
 
           {/* 三个核心入口 */}
           <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl mt-2'>
-            <Link
-              href='/care'
-              className='flex flex-col items-center gap-3 p-6 rounded-2xl bg-green-600 hover:bg-green-500 text-white shadow-lg transition-colors'
+            <CountdownOutlineButton
+              strokeWidth={6}
+              durationMs={8000}
+              ringColor='#4f8cff'
+              delayMs={800}
+              className='bg-green-600 hover:bg-green-500 shadow-lg'
             >
-              <Tv className='w-10 h-10' />
-              <span className='text-lg font-bold'>进入老人视图</span>
-              <span className='text-xs text-green-100'>
-                打开即倒计时自动续播
-              </span>
-            </Link>
+              <Link
+                href='/care'
+                className='flex flex-col items-center gap-3 p-6  text-white  transition-colors'
+              >
+                <Tv className='w-10 h-10' />
+                <span className='text-lg font-bold'>继续播放</span>
+                <span className='text-xs text-green-100'>
+                  倒计时结束自动续播
+                </span>
+              </Link>
+            </CountdownOutlineButton>
             <Link
               href='/care-admin'
               className='flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-green-600/40 hover:border-green-500 text-gray-800 dark:text-gray-200 transition-colors'

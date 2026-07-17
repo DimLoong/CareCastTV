@@ -48,6 +48,7 @@ import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 import DataMigration from '@/components/DataMigration';
 import type { ImportExportModalProps } from '@/components/ImportExportModal';
+import ManageTabs from '@/components/ManageTabs';
 import PageLayout from '@/components/PageLayout';
 
 const ImportExportModal = dynamic<ImportExportModalProps>(
@@ -2530,6 +2531,8 @@ const VideoSourceConfig = ({
   const { isLoading, withLoading } = useLoadingState();
   const [sources, setSources] = useState<DataSource[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  // 正在编辑的源 key（null 表示表单处于"新增"模式）
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [orderChanged, setOrderChanged] = useState(false);
   const [newSource, setNewSource] = useState<DataSource>({
     name: '',
@@ -2646,6 +2649,17 @@ const VideoSourceConfig = ({
             from: 'custom',
           };
           sources.push(newSource);
+          break;
+        }
+        case 'edit': {
+          // 编辑源信息（key 不可改，被播放记录与关怀播放列表引用）
+          const source = sources.find((s) => s.key === payload.key);
+          if (source) {
+            source.name = payload.name;
+            source.api = payload.api;
+            source.detail = payload.detail || '';
+            source.from = 'custom';
+          }
           break;
         }
         case 'delete': {
@@ -2815,14 +2829,25 @@ const VideoSourceConfig = ({
   const handleAddSource = () => {
     if (!newSource.name || !newSource.key || !newSource.api) return;
     withLoading('addSource', async () => {
-      await callSourceApi({
-        action: 'add',
-        key: newSource.key,
-        name: newSource.name,
-        api: newSource.api,
-        detail: newSource.detail,
-        is_adult: newSource.is_adult || false,
-      });
+      if (editingKey) {
+        // 编辑模式：只更新 name/api/detail（key 不可改）
+        await callSourceApi({
+          action: 'edit',
+          key: editingKey,
+          name: newSource.name,
+          api: newSource.api,
+          detail: newSource.detail,
+        });
+      } else {
+        await callSourceApi({
+          action: 'add',
+          key: newSource.key,
+          name: newSource.name,
+          api: newSource.api,
+          detail: newSource.detail,
+          is_adult: newSource.is_adult || false,
+        });
+      }
       setNewSource({
         name: '',
         key: '',
@@ -2832,10 +2857,18 @@ const VideoSourceConfig = ({
         is_adult: false,
         from: 'custom',
       });
+      setEditingKey(null);
       setShowAddForm(false);
     }).catch(() => {
-      console.error('操作失败', 'add', newSource);
+      console.error('操作失败', editingKey ? 'edit' : 'add', newSource);
     });
+  };
+
+  // 进入编辑模式：把该源信息填入表单
+  const handleStartEdit = (source: DataSource) => {
+    setNewSource({ ...source, detail: source.detail || '' });
+    setEditingKey(source.key);
+    setShowAddForm(true);
   };
 
   const handleDragEnd = (event: any) => {
@@ -3507,6 +3540,13 @@ const VideoSourceConfig = ({
           >
             {!source.disabled ? '禁用' : '启用'}
           </button>
+          <button
+            onClick={() => handleStartEdit(source)}
+            className={buttonStyles.roundedPrimary}
+            title='编辑名称 / API 地址 / Detail 地址'
+          >
+            编辑
+          </button>
           {source.from !== 'config' && (
             <button
               onClick={() => handleDelete(source.key)}
@@ -3915,7 +3955,22 @@ const VideoSourceConfig = ({
               )}
             </button>
             <button
-              onClick={() => setShowAddForm(!showAddForm)}
+              onClick={() => {
+                if (showAddForm) {
+                  // 关闭表单时重置编辑状态
+                  setEditingKey(null);
+                  setNewSource({
+                    name: '',
+                    key: '',
+                    api: '',
+                    detail: '',
+                    disabled: false,
+                    is_adult: false,
+                    from: 'custom',
+                  });
+                }
+                setShowAddForm(!showAddForm);
+              }}
               className={
                 showAddForm ? buttonStyles.secondary : buttonStyles.success
               }
@@ -3953,7 +4008,10 @@ const VideoSourceConfig = ({
               onChange={(e) =>
                 setNewSource((prev) => ({ ...prev, key: e.target.value }))
               }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              // 编辑模式下 key 不可修改：它被播放记录与关怀播放列表引用
+              disabled={!!editingKey}
+              title={editingKey ? 'key 不可修改' : undefined}
+              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
             />
             <input
               type='text'
@@ -3975,8 +4033,10 @@ const VideoSourceConfig = ({
             />
           </div>
 
-          {/* 成人资源标记 */}
-          <div className='flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
+          {/* 成人资源标记（编辑模式下用列表里的开关切换，这里隐藏） */}
+          <div
+            className={`flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 ${editingKey ? 'hidden' : ''}`}
+          >
             <div className='flex items-center space-x-2'>
               <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>
                 标记为成人资源
@@ -4024,7 +4084,11 @@ const VideoSourceConfig = ({
                   : buttonStyles.success
               }`}
             >
-              {isLoading('addSource') ? '添加中...' : '添加'}
+              {isLoading('addSource')
+                ? '保存中...'
+                : editingKey
+                  ? '保存修改'
+                  : '添加'}
             </button>
           </div>
         </div>
@@ -5850,6 +5914,9 @@ function AdminPageClient() {
     <PageLayout activePath='/admin'>
       <div className='px-2 sm:px-10 py-4 sm:py-8'>
         <div className='max-w-[95%] mx-auto'>
+          {/* 管理区域标签页导航 */}
+          <ManageTabs />
+
           {/* 本地模式警告提示 */}
           {storageMode === 'local' && (
             <div className='mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800'>

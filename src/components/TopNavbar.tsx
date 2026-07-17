@@ -62,10 +62,10 @@ const NAV_ITEMS = [
     openInNewTab: false, // 搜索不需要新标签页
   },
   {
-    key: 'care-admin',
+    key: 'manage',
     href: '/care-admin',
     icon: HeartHandshake,
-    label: '关怀管理',
+    label: '管理',
     chip: 'chip-care-admin',
     type: 'exact',
     openInNewTab: false,
@@ -77,14 +77,20 @@ const NAV_ITEMS = [
  * 用于初始化状态和浏览器后退时的同步
  */
 function computeActiveKey(pathname: string, _type: string | null): string {
+  // 管理区域的三个标签页都归属"管理"导航项
+  if (
+    pathname === '/care-admin' ||
+    pathname === '/settings' ||
+    pathname === '/admin'
+  ) {
+    return 'manage';
+  }
   // 精确路径匹配
   switch (pathname) {
     case '/':
       return 'home';
     case '/search':
       return 'search';
-    case '/care-admin':
-      return 'care-admin';
     default:
       // 未匹配到任何导航项，返回空字符串（不高亮任何 Tab）
       return '';

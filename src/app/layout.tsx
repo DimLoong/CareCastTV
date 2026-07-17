@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
 import React from 'react';
 
+import 'tdesign-react/dist/tdesign.css';
 import './globals.css';
 
 import { getConfig } from '@/lib/config';
@@ -61,8 +62,7 @@ export default async function RootLayout({
   let doubanImageProxyType =
     process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE || 'cmliussss-cdn-tencent';
   let doubanImageProxy = process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '';
-  let disableYellowFilter =
-    false; // CareCastTV：成人内容过滤硬性开启
+  let disableYellowFilter = false; // CareCastTV：成人内容过滤硬性开启
   let fluidSearch = process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false';
   let customCategories = [] as {
     name: string;

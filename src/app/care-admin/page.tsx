@@ -52,6 +52,7 @@ import { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 import { fetchRemoteConfigOnce } from '@/hooks/useCareRemoteConfig';
 
+import ManageTabs from '@/components/ManageTabs';
 import PageLayout from '@/components/PageLayout';
 
 /** 播放记录摘要：用于在播放列表项上显示观看进度 */
@@ -201,6 +202,7 @@ export default function CareAdminPage() {
   return (
     <PageLayout activePath='/care-admin'>
       <div className='max-w-4xl mx-auto px-4 py-8 space-y-8'>
+        <ManageTabs />
         <header className='flex flex-wrap items-center justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>

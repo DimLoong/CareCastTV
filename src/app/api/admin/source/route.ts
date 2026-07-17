@@ -11,6 +11,7 @@ export const runtime = 'nodejs';
 // 支持的操作类型
 type Action =
   | 'add'
+  | 'edit'
   | 'disable'
   | 'enable'
   | 'delete'
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
     // 基础校验
     const ACTIONS: Action[] = [
       'add',
+      'edit',
       'disable',
       'enable',
       'delete',
@@ -111,6 +113,27 @@ export async function POST(request: NextRequest) {
           from: 'custom',
           disabled: false,
         });
+        break;
+      }
+      case 'edit': {
+        // 编辑已有源的 name/api/detail（key 不可改，它被播放记录与关怀播放列表引用）
+        const { key, name, api, detail } = body as {
+          key?: string;
+          name?: string;
+          api?: string;
+          detail?: string;
+        };
+        if (!key || !name || !api) {
+          return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+        }
+        const entry = adminConfig.SourceConfig.find((s) => s.key === key);
+        if (!entry)
+          return NextResponse.json({ error: '源不存在' }, { status: 404 });
+        entry.name = name;
+        entry.api = api;
+        entry.detail = detail || undefined;
+        // 手动编辑过的源视为自定义源，避免被订阅配置文件覆盖
+        entry.from = 'custom';
         break;
       }
       case 'disable': {
