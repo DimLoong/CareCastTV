@@ -29,7 +29,7 @@ const PulseLogo = () => (
 
     {/* Logo 容器 */}
     <div className='relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl bg-linear-to-br from-red-500 to-red-700 shadow-2xl shadow-red-500/30'>
-      {/* DecoTV Logo - 播放三角形 */}
+      {/* CareCastTV Logo - 播放三角形 */}
       <svg
         className='ml-1 h-10 w-10 text-white drop-shadow-lg'
         viewBox='0 0 24 24'

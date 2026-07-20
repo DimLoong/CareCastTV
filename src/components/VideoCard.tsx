@@ -263,14 +263,11 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
      * 注意：不再手动触发 NProgress，缓存系统足够快
      */
     const handleClick = useCallback(() => {
-      if (origin === 'live' && actualSource && actualId) {
-        // 直播内容跳转到直播页面
-        const url = `/live?source=${actualSource.replace('live_', '')}&id=${actualId.replace('live_', '')}`;
-        router.push(url);
-      } else if (
-        from === 'douban' ||
-        (isAggregate && !actualSource && !actualId)
-      ) {
+      // 直播功能已移除：历史收藏中的 live 内容不再跳转
+      if (origin === 'live') {
+        return;
+      }
+      if (from === 'douban' || (isAggregate && !actualSource && !actualId)) {
         const url = `/play?title=${encodeURIComponent(actualTitle.trim())}${
           actualYear ? `&year=${actualYear}` : ''
         }${actualSearchType ? `&stype=${actualSearchType}` : ''}${isAggregate ? '&prefer=true' : ''}${actualQuery ? `&stitle=${encodeURIComponent(actualQuery.trim())}` : ''}`;
@@ -300,14 +297,11 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
 
     // 新标签页播放处理函数
     const handlePlayInNewTab = useCallback(() => {
-      if (origin === 'live' && actualSource && actualId) {
-        // 直播内容跳转到直播页面
-        const url = `/live?source=${actualSource.replace('live_', '')}&id=${actualId.replace('live_', '')}`;
-        window.open(url, '_blank');
-      } else if (
-        from === 'douban' ||
-        (isAggregate && !actualSource && !actualId)
-      ) {
+      // 直播功能已移除：历史收藏中的 live 内容不再跳转
+      if (origin === 'live') {
+        return;
+      }
+      if (from === 'douban' || (isAggregate && !actualSource && !actualId)) {
         const url = `/play?title=${encodeURIComponent(actualTitle.trim())}${actualYear ? `&year=${actualYear}` : ''}${actualSearchType ? `&stype=${actualSearchType}` : ''}${isAggregate ? '&prefer=true' : ''}${actualQuery ? `&stitle=${encodeURIComponent(actualQuery.trim())}` : ''}`;
         window.open(url, '_blank');
       } else if (actualSource && actualId) {

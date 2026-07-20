@@ -51,7 +51,7 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
     useState<VersionCheckResult | null>(null);
   const [isCheckingVersion, setIsCheckingVersion] = useState(false);
   const UPDATE_REPO =
-    process.env.NEXT_PUBLIC_UPDATE_REPO || 'Decohererk/DecoTV';
+    process.env.NEXT_PUBLIC_UPDATE_REPO || 'DimLoong/CareCastTV';
   const REPO_URL =
     process.env.NEXT_PUBLIC_REPO_URL || `https://github.com/${UPDATE_REPO}`;
 

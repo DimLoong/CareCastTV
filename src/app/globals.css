@@ -48,6 +48,104 @@
 /* Mobile Landscape Media Query - 自定义断点需要直接使用 */
 @custom-media --mobile-landscape (orientation: landscape) and (max-height: 700px);
 
+/* =======================================================================
+   CareCastTV 品牌色系统（橙）
+   全局唯一的品牌色定义处：改这里即可全站换色。
+   - --brand-color / --brand-gradient 供自定义样式使用
+   - --td-brand-* 接管 TDesign 组件库的主题色（Button/Switch 等自动变橙）
+   ======================================================================= */
+:root {
+  /* 品牌主色与渐变 */
+  --brand-color: #ff6a00;
+  --brand-color-light: #ff9a3d;
+  --brand-color-dark: #e05500;
+  --brand-gradient: linear-gradient(
+    135deg,
+    #ffb347 0%,
+    #ff7a1a 48%,
+    #ff4d00 100%
+  );
+  /* 弱化版渐变：用于卡片/高亮底色 */
+  --brand-gradient-soft: linear-gradient(
+    135deg,
+    rgba(255, 179, 71, 0.16),
+    rgba(255, 77, 0, 0.16)
+  );
+
+  /* TDesign 品牌色梯度接管（1 最浅 → 10 最深） */
+  --td-brand-color-1: #fff4e6;
+  --td-brand-color-2: #ffe4c7;
+  --td-brand-color-3: #ffcf9e;
+  --td-brand-color-4: #ffb570;
+  --td-brand-color-5: #ff9a42;
+  --td-brand-color-6: #ff8218;
+  --td-brand-color-7: #ff6a00;
+  --td-brand-color-8: #db5400;
+  --td-brand-color-9: #b74200;
+  --td-brand-color-10: #933200;
+  --td-brand-color: var(--td-brand-color-7);
+  --td-brand-color-hover: var(--td-brand-color-6);
+  --td-brand-color-focus: var(--td-brand-color-2);
+  --td-brand-color-active: var(--td-brand-color-8);
+  --td-brand-color-disabled: var(--td-brand-color-3);
+  --td-brand-color-light: var(--td-brand-color-1);
+}
+
+/* 暗色模式下 TDesign 品牌色微调（浅端加深，避免刺眼） */
+:root[theme-mode='dark'],
+.dark {
+  --td-brand-color-1: #3d2000;
+  --td-brand-color-2: #522b00;
+  --td-brand-color-3: #6b3800;
+  --td-brand-color-light: var(--td-brand-color-1);
+  --td-brand-color-focus: var(--td-brand-color-2);
+}
+
+/* 品牌渐变文字：logo、slogan、重要标题统一使用 */
+.brand-gradient-text {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 品牌渐变背景：关键按钮/激活态统一使用 */
+.brand-gradient-bg {
+  background-image: var(--brand-gradient);
+  color: #fff;
+}
+
+/* 关键按钮：橙色渐变 + 电视端可见焦点环 */
+.brand-btn {
+  background-image: var(--brand-gradient);
+  color: #fff;
+  border: none;
+  box-shadow: 0 6px 16px -6px rgba(255, 106, 0, 0.55);
+  transition:
+    filter 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
+}
+.brand-btn:hover {
+  filter: brightness(1.08);
+}
+.brand-btn:active {
+  transform: scale(0.97);
+}
+.brand-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
+}
+
+/* 电视端焦点样式：遥控器 D-pad 移动焦点时必须清晰可见 */
+.brand-btn:focus-visible,
+.tv-focus:focus-visible {
+  outline: 3px solid rgba(255, 154, 61, 0.95);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(255, 106, 0, 0.25);
+}
+
 /* Custom Keyframes */
 @keyframes flicker {
   0%,
@@ -163,26 +261,26 @@ body {
   color: rgb(var(--foreground-rgb));
 }
 
-/* Enhanced Neon text effect for brand */
+/* Enhanced Neon text effect for brand（登录/注册页 logo，橙色品牌渐变） */
 .neon-text {
   position: relative;
   background: linear-gradient(
     45deg,
-    #8b5cf6 0%,
-    #a78bfa 25%,
-    #c084fc 50%,
-    #f0abfc 75%,
-    #fbbf24 100%
+    #ffb347 0%,
+    #ff9a3d 25%,
+    #ff7a1a 50%,
+    #ff5a00 75%,
+    #ffcf9e 100%
   );
   background-size: 300% 300%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   text-shadow:
-    0 0 5px rgba(139, 92, 246, 0.5),
-    0 0 10px rgba(167, 139, 250, 0.4),
-    0 0 15px rgba(192, 132, 252, 0.3),
-    0 0 20px rgba(240, 171, 252, 0.2);
+    0 0 5px rgba(255, 122, 26, 0.5),
+    0 0 10px rgba(255, 154, 61, 0.4),
+    0 0 15px rgba(255, 179, 71, 0.3),
+    0 0 20px rgba(255, 106, 0, 0.2);
   animation: neonGradientShift 4s ease-in-out infinite;
 }
 
@@ -197,15 +295,15 @@ body {
   }
 }
 
-/* New DecoTV Brand Style */
+/* New CareCastTV Brand Style（导航栏 logo，橙色品牌渐变） */
 .deco-brand {
   background: linear-gradient(
     135deg,
-    #3b82f6 0%,
-    #8b5cf6 25%,
-    #d946ef 50%,
-    #f43f5e 75%,
-    #f59e0b 100%
+    #ffb347 0%,
+    #ff9a3d 30%,
+    #ff7a1a 55%,
+    #ff4d00 80%,
+    #ffcf9e 100%
   );
   background-size: 300% 300%;
   -webkit-background-clip: text;
@@ -521,6 +619,23 @@ body {
   background: radial-gradient(
     70% 70% at 50% 50%,
     rgba(99, 102, 241, 0.35),
+    transparent 70%
+  );
+}
+
+/* 管理（关怀管理入口）：品牌橙光晕 */
+.chip-care-admin {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.14)
+  );
+  border-color: rgba(255, 122, 26, 0.4);
+}
+.chip-care-admin::before {
+  background: radial-gradient(
+    70% 70% at 50% 50%,
+    rgba(255, 122, 26, 0.35),
     transparent 70%
   );
 }
@@ -1025,7 +1140,7 @@ div[data-media-provider] video {
   }
 }
 
-/* DecoTV 炫酷动画效果 */
+/* CareCastTV 炫酷动画效果 */
 @keyframes blob {
   0%,
   100% {

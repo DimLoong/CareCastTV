@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.dimloong.carecasttv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.dimloong.carecasttv'
+        // Android 5.0 起（覆盖绝大多数电视盒子）
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+
+        // 服务器地址从 gradle.properties 的 CARECAST_URL 注入，
+        // 也可在构建命令中用 -PCARECAST_URL=... 覆盖
+        buildConfigField 'String', 'CARECAST_URL',
+                "\"${project.findProperty('CARECAST_URL') ?: 'http://192.168.1.100:3000'}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            // 侧载场景使用 debug 签名即可，无需配置正式签名
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+// 零第三方依赖：只用系统 WebView 和标准 Android API，包体最小
+dependencies {}

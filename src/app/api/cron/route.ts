@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getConfig, refineConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { fetchVideoDetail } from '@/lib/fetchVideoDetail';
-import { refreshLiveChannels } from '@/lib/live';
 import { SearchResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -39,34 +38,7 @@ export async function GET(request: NextRequest) {
 
 async function cronJob() {
   await refreshConfig();
-  await refreshAllLiveChannels();
   await refreshRecordAndFavorites();
-}
-
-async function refreshAllLiveChannels() {
-  const config = await getConfig();
-
-  // 并发刷新所有启用的直播源
-  const refreshPromises = (config.LiveConfig || [])
-    .filter((liveInfo) => !liveInfo.disabled)
-    .map(async (liveInfo) => {
-      try {
-        const nums = await refreshLiveChannels(liveInfo);
-        liveInfo.channelNumber = nums;
-      } catch (error) {
-        console.error(
-          `刷新直播源失败 [${liveInfo.name || liveInfo.key}]:`,
-          error,
-        );
-        liveInfo.channelNumber = 0;
-      }
-    });
-
-  // 等待所有刷新任务完成
-  await Promise.all(refreshPromises);
-
-  // 保存配置
-  await db.saveAdminConfig(config);
 }
 
 async function refreshConfig() {

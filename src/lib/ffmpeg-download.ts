@@ -10,8 +10,8 @@ import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 
-const JOBS_SYMBOL = Symbol.for('decotv.ffmpeg.jobs');
-const FFMPEG_SUPPORT_SYMBOL = Symbol.for('decotv.ffmpeg.support');
+const JOBS_SYMBOL = Symbol.for('carecasttv.ffmpeg.jobs');
+const FFMPEG_SUPPORT_SYMBOL = Symbol.for('carecasttv.ffmpeg.support');
 
 const MIN_PROGRESS = 0;
 const MAX_PROGRESS = 100;
@@ -144,7 +144,7 @@ function getDefaultOutputDir(): string {
   }
 
   if (process.env.VERCEL === '1') {
-    return path.resolve('/tmp', 'decotv-ffmpeg-downloads');
+    return path.resolve('/tmp', 'carecasttv-ffmpeg-downloads');
   }
 
   return path.resolve(process.cwd(), '.cache', 'ffmpeg-downloads');

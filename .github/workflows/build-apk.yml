@@ -1,0 +1,49 @@
+# CareCastTV 壳 APK 云端构建
+# 用法：GitHub 仓库页 → Actions → Build TV Shell APK → Run workflow
+#      填入你的服务器地址（不填则使用 tvshell/gradle.properties 里的默认值）
+#      构建完成后在 run 页面底部 Artifacts 下载 APK
+name: Build TV Shell APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: 'CareCastTV 服务器地址（如 https://xxx.vercel.app 或 http://192.168.1.100:3000）'
+        required: false
+        type: string
+  push:
+    branches: [main, dev]
+    paths: ['tvshell/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Build APK
+        working-directory: tvshell
+        run: |
+          if [ -n "${{ inputs.server_url }}" ]; then
+            gradle assembleRelease -PCARECAST_URL="${{ inputs.server_url }}"
+          else
+            gradle assembleRelease
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CareCastTV-apk
+          path: tvshell/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30

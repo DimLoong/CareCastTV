@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie, verifyApiAuth } from '@/lib/auth';
 import { toSimplified } from '@/lib/chinese';
-import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
+import { getAvailableApiSites, getCacheTime } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { rankSearchResults } from '@/lib/search-ranking';
 import { yellowWords } from '@/lib/yellow';
@@ -41,26 +41,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const config = await getConfig();
   const apiSites = await getAvailableApiSites(username);
 
-  // 🔒 成人内容过滤逻辑
-  // URL 参数优先级: ?adult=1 (显示成人) > ?filter=off (显示成人) > 全局配置
-  const adultParam = searchParams.get('adult'); // OrionTV 风格参数
-  const filterParam = searchParams.get('filter'); // TVBox 风格参数
-
-  let shouldFilterAdult = !config.SiteConfig.DisableYellowFilter; // 默认使用全局配置
-
-  // URL 参数覆盖全局配置
-  if (adultParam === '1' || adultParam === 'true') {
-    shouldFilterAdult = false; // 显式启用成人内容
-  } else if (adultParam === '0' || adultParam === 'false') {
-    shouldFilterAdult = true; // 显式禁用成人内容
-  } else if (filterParam === 'off' || filterParam === 'disable') {
-    shouldFilterAdult = false; // 禁用过滤 = 显示成人内容
-  } else if (filterParam === 'on' || filterParam === 'enable') {
-    shouldFilterAdult = true; // 启用过滤 = 隐藏成人内容
-  }
+  // 🔒 成人内容过滤：CareCastTV 面向家庭老人场景，过滤硬性开启，无任何绕过参数
+  const shouldFilterAdult = true;
 
   // 将搜索关键词规范化为简体中文，提升繁体用户搜索体验
   let normalizedQuery = query;

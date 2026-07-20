@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
 import React from 'react';
 
+import 'tdesign-react/dist/tdesign.css';
 import './globals.css';
 
 import { getConfig } from '@/lib/config';
@@ -10,10 +11,13 @@ import { getConfig } from '@/lib/config';
 import { DownloadManagerProvider } from '@/contexts/DownloadManagerContext';
 import { GlobalCacheProvider } from '@/contexts/GlobalCacheContext';
 
+import AuthCookieRefresher from '../components/AuthCookieRefresher';
+import CareGate from '../components/CareGate';
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
 import NavbarGate from '../components/NavbarGate';
 import ParticleBackground from '../components/ParticleBackground';
 import { SiteProvider } from '../components/SiteProvider';
+import TDesignThemeSync from '../components/TDesignThemeSync';
 import { ThemeProvider } from '../components/ThemeProvider';
 import TopNavbar from '../components/TopNavbar';
 
@@ -24,14 +28,15 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   const config = await getConfig();
-  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'DecoTV';
+  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'CareCastTV';
   if (storageType !== 'localstorage') {
     siteName = config.SiteConfig.SiteName;
   }
 
   return {
     title: siteName,
-    description: '影视聚合',
+    description: 'CareCastTV —— 面向家庭老人的零操作自动续播电视应用',
+    authors: [{ name: 'DimLoong' }],
     manifest: '/manifest.json',
   };
 }
@@ -47,7 +52,7 @@ export default async function RootLayout({
 }) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
-  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'DecoTV';
+  let siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'CareCastTV';
   let announcement =
     process.env.ANNOUNCEMENT ||
     '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。';
@@ -58,8 +63,7 @@ export default async function RootLayout({
   let doubanImageProxyType =
     process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE || 'cmliussss-cdn-tencent';
   let doubanImageProxy = process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '';
-  let disableYellowFilter =
-    process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
+  let disableYellowFilter = false; // CareCastTV：成人内容过滤硬性开启
   let fluidSearch = process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false';
   let customCategories = [] as {
     name: string;
@@ -75,7 +79,6 @@ export default async function RootLayout({
     doubanProxy = config.SiteConfig.DoubanProxy;
     doubanImageProxyType = config.SiteConfig.DoubanImageProxyType;
     doubanImageProxy = config.SiteConfig.DoubanImageProxy;
-    disableYellowFilter = config.SiteConfig.DisableYellowFilter;
     customCategories = config.CustomCategories.filter(
       (category) => !category.disabled,
     ).map((category) => ({
@@ -116,9 +119,9 @@ export default async function RootLayout({
       <body
         className={`${inter.className} min-h-screen bg-white text-gray-900 dark:bg-black dark:text-gray-200 bg-animated-gradient`}
       >
-        {/* 顶部进度条：点击链接瞬间显示，消除"死机感" */}
+        {/* 顶部进度条：点击链接瞬间显示，消除"死机感"（品牌橙） */}
         <NextTopLoader
-          color='#ec4899'
+          color='#ff7a1a'
           initialPosition={0.08}
           crawlSpeed={200}
           height={3}
@@ -126,7 +129,7 @@ export default async function RootLayout({
           showSpinner={false}
           easing='ease'
           speed={200}
-          shadow='0 0 10px #ec4899,0 0 5px #ec4899'
+          shadow='0 0 10px #ff7a1a,0 0 5px #ff7a1a'
         />
         <GlobalCacheProvider>
           <ThemeProvider
@@ -135,8 +138,14 @@ export default async function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            {/* 同步 TDesign 的 theme-mode 属性，使组件库跟随 .dark 主题 */}
+            <TDesignThemeSync />
             <DownloadManagerProvider>
               <SiteProvider siteName={siteName} announcement={announcement}>
+                {/* 关怀模式路由门禁：开启后未验证时所有页面重定向到 /care */}
+                <CareGate />
+                {/* 登录 cookie 滑动续期：每次打开应用续期 400 天，实现永久免登录 */}
+                <AuthCookieRefresher />
                 <ParticleBackground />
                 <NavbarGate>
                   <TopNavbar />

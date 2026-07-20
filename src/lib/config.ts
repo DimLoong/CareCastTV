@@ -3,7 +3,6 @@
 import { db } from '@/lib/db';
 
 import { AdminConfig } from './admin.types';
-import { getDefaultPanSouConfig, normalizePanSouConfig } from './pansou';
 
 export interface ApiSite {
   key: string;
@@ -11,13 +10,6 @@ export interface ApiSite {
   name: string;
   detail?: string;
   is_adult?: boolean; // 标记是否为成人资源
-}
-
-export interface LiveCfg {
-  name: string;
-  url: string;
-  ua?: string;
-  epg?: string; // 节目单
 }
 
 interface ConfigFileStruct {
@@ -30,9 +22,6 @@ interface ConfigFileStruct {
     type: 'movie' | 'tv';
     query: string;
   }[];
-  lives?: {
-    [key: string]: LiveCfg;
-  };
 }
 
 export const API_CONFIG = {
@@ -150,43 +139,6 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
   // 将 Map 转换回数组
   adminConfig.CustomCategories = Array.from(currentCustomCategories.values());
 
-  const livesFromFile = Object.entries(fileConfig.lives || []);
-  const currentLives = new Map(
-    (adminConfig.LiveConfig || []).map((l) => [l.key, l]),
-  );
-  livesFromFile.forEach(([key, site]) => {
-    const existingLive = currentLives.get(key);
-    if (existingLive) {
-      existingLive.name = site.name;
-      existingLive.url = site.url;
-      existingLive.ua = site.ua;
-      existingLive.epg = site.epg;
-    } else {
-      // 如果不存在，创建新条目
-      currentLives.set(key, {
-        key,
-        name: site.name,
-        url: site.url,
-        ua: site.ua,
-        epg: site.epg,
-        channelNumber: 0,
-        from: 'config',
-        disabled: false,
-      });
-    }
-  });
-
-  // 检查现有 LiveConfig 是否在 fileConfig.lives 中，如果不在则标记为 custom
-  const livesFromFileKeys = new Set(livesFromFile.map(([key]) => key));
-  currentLives.forEach((live) => {
-    if (!livesFromFileKeys.has(live.key)) {
-      live.from = 'custom';
-    }
-  });
-
-  // 将 Map 转换回数组
-  adminConfig.LiveConfig = Array.from(currentLives.values());
-
   return adminConfig;
 }
 
@@ -212,7 +164,7 @@ async function getInitConfig(
     ConfigFile: configFile,
     ConfigSubscribtion: subConfig,
     SiteConfig: {
-      SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'DecoTV',
+      SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'CareCastTV',
       Announcement:
         process.env.ANNOUNCEMENT ||
         '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。',
@@ -227,7 +179,7 @@ async function getInitConfig(
         'cmliussss-cdn-tencent',
       DoubanImageProxy: process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '',
       DisableYellowFilter:
-        process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
+        false, // CareCastTV：成人内容过滤硬性开启
       FluidSearch: process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false',
     },
     UserConfig: {
@@ -235,8 +187,6 @@ async function getInitConfig(
     },
     SourceConfig: [],
     CustomCategories: [],
-    LiveConfig: [],
-    PanSouConfig: getDefaultPanSouConfig(),
   };
 
   // 补充用户信息
@@ -284,22 +234,6 @@ async function getInitConfig(
     });
   });
 
-  // 从配置文件中补充直播源信息
-  Object.entries(cfgFile.lives || []).forEach(([key, live]) => {
-    if (!adminConfig.LiveConfig) {
-      adminConfig.LiveConfig = [];
-    }
-    adminConfig.LiveConfig.push({
-      key,
-      name: live.name,
-      url: live.url,
-      ua: live.ua,
-      epg: live.epg,
-      channelNumber: 0,
-      from: 'config',
-      disabled: false,
-    });
-  });
 
   return adminConfig;
 }
@@ -317,7 +251,7 @@ export function getLocalModeConfig(): AdminConfig {
       LastCheck: '',
     },
     SiteConfig: {
-      SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'DecoTV',
+      SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'CareCastTV',
       Announcement:
         process.env.ANNOUNCEMENT ||
         '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。',
@@ -332,7 +266,7 @@ export function getLocalModeConfig(): AdminConfig {
         'cmliussss-cdn-tencent',
       DoubanImageProxy: process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '',
       DisableYellowFilter:
-        process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
+        false, // CareCastTV：成人内容过滤硬性开启
       FluidSearch: process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false',
     },
     UserConfig: {
@@ -346,8 +280,6 @@ export function getLocalModeConfig(): AdminConfig {
     },
     SourceConfig: [],
     CustomCategories: [],
-    LiveConfig: [],
-    PanSouConfig: getDefaultPanSouConfig(),
   };
   return adminConfig;
 }
@@ -397,11 +329,6 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   ) {
     adminConfig.CustomCategories = [];
   }
-  if (!adminConfig.LiveConfig || !Array.isArray(adminConfig.LiveConfig)) {
-    adminConfig.LiveConfig = [];
-  }
-  adminConfig.PanSouConfig = normalizePanSouConfig(adminConfig.PanSouConfig);
-
   // 站长变更自检
   const ownerUser = process.env.USERNAME;
 
@@ -457,16 +384,6 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       return true;
     },
   );
-
-  // 直播源去重
-  const seenLiveKeys = new Set<string>();
-  adminConfig.LiveConfig = adminConfig.LiveConfig.filter((live) => {
-    if (seenLiveKeys.has(live.key)) {
-      return false;
-    }
-    seenLiveKeys.add(live.key);
-    return true;
-  });
 
   return adminConfig;
 }

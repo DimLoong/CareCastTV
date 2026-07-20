@@ -27,17 +27,13 @@ import {
   Check,
   CheckCircle,
   ChevronDown,
-  ChevronUp,
-  Cloud,
+  Copy,
   Database,
   Download,
   ExternalLink,
   FileText,
   FolderOpen,
-  MessageSquareText,
-  Package,
   Settings,
-  Tv,
   Upload,
   Users,
   Video,
@@ -46,30 +42,40 @@ import { GripVertical } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Switch } from 'tdesign-react';
+import 'tdesign-react/lib/_util/react-19-adapter';
 
-import { AdminConfig, DanmuCustomNode } from '@/lib/admin.types';
+import { AdminConfig } from '@/lib/admin.types';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
-import { DEFAULT_PANSOU_SERVER_URL } from '@/lib/pansou';
 
 import DataMigration from '@/components/DataMigration';
 import type { ImportExportModalProps } from '@/components/ImportExportModal';
+import ManageLayout, { ManageSubTab } from '@/components/ManageLayout';
 import PageLayout from '@/components/PageLayout';
-import type { PanSouConfigPanelProps } from '@/components/PanSouConfigPanel';
 
 const ImportExportModal = dynamic<ImportExportModalProps>(
   () => import('../../components/ImportExportModal').then((mod) => mod.default),
   { ssr: false },
 );
-const PanSouConfigPanel = dynamic<PanSouConfigPanelProps>(
-  () => import('../../components/PanSouConfigPanel').then((mod) => mod.default),
-  { ssr: false },
-);
+
+// 把时间戳格式化为「x 分钟前 / x 小时前 / x 天前」，用于有效性检测时间展示
+const formatRelativeTime = (ts: number): string => {
+  const diff = Date.now() - ts;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return '刚刚';
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return new Date(ts).toLocaleDateString('zh-CN');
+};
 
 // 统一按钮样式系统
 const buttonStyles = {
-  // 主要操作按钮（蓝色）- 用于配置、设置、确认等
+  // 主要操作按钮（品牌橙）- 用于配置、设置、确认等关键操作
   primary:
-    'px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg transition-colors',
+    'brand-btn px-3 py-1.5 text-sm font-medium rounded-lg',
   // 成功操作按钮（绿色）- 用于添加、启用、保存等
   success:
     'px-3 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg transition-colors',
@@ -82,9 +88,9 @@ const buttonStyles = {
   // 警告操作按钮（黄色）- 用于批量禁用等
   warning:
     'px-3 py-1.5 text-sm font-medium bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-600 dark:hover:bg-yellow-700 text-white rounded-lg transition-colors',
-  // 小尺寸主要按钮
+  // 小尺寸主要按钮（品牌橙）
   primarySmall:
-    'px-2 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-md transition-colors',
+    'brand-btn px-2 py-1 text-xs font-medium rounded-md',
   // 小尺寸成功按钮
   successSmall:
     'px-2 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-md transition-colors',
@@ -99,7 +105,7 @@ const buttonStyles = {
     'px-2 py-1 text-xs font-medium bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-600 dark:hover:bg-yellow-700 text-white rounded-md transition-colors',
   // 圆角小按钮（用于表格操作）
   roundedPrimary:
-    'inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-200 transition-colors',
+    'inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/40 dark:hover:bg-orange-900/60 dark:text-orange-200 transition-colors',
   roundedSuccess:
     'inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/40 dark:hover:bg-green-900/60 dark:text-green-200 transition-colors',
   roundedDanger:
@@ -115,8 +121,8 @@ const buttonStyles = {
     'px-3 py-1.5 text-sm font-medium bg-gray-400 dark:bg-gray-600 cursor-not-allowed text-white rounded-lg transition-colors',
   disabledSmall:
     'px-2 py-1 text-xs font-medium bg-gray-400 dark:bg-gray-600 cursor-not-allowed text-white rounded-md transition-colors',
-  // 开关按钮样式
-  toggleOn: 'bg-green-600 dark:bg-green-600',
+  // 开关按钮样式（激活态用品牌橙）
+  toggleOn: 'bg-[#ff6a00] dark:bg-[#ff6a00]',
   toggleOff: 'bg-gray-200 dark:bg-gray-700',
   toggleThumb: 'bg-white',
   toggleThumbOn: 'translate-x-6',
@@ -337,17 +343,6 @@ interface DataSource {
 }
 
 // 直播源数据类型
-interface LiveDataSource {
-  name: string;
-  key: string;
-  url: string;
-  ua?: string;
-  epg?: string;
-  channelNumber?: number;
-  disabled?: boolean;
-  from: 'config' | 'custom';
-}
-
 // 自定义分类数据类型
 interface CustomCategory {
   name?: string;
@@ -356,44 +351,6 @@ interface CustomCategory {
   disabled?: boolean;
   from: 'config' | 'custom';
 }
-
-// 可折叠标签组件
-interface CollapsibleTabProps {
-  title: string;
-  icon?: React.ReactNode;
-  isExpanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}
-
-const CollapsibleTab = ({
-  title,
-  icon,
-  isExpanded,
-  onToggle,
-  children,
-}: CollapsibleTabProps) => {
-  return (
-    <div className='rounded-xl shadow-sm mb-4 overflow-hidden bg-white/80 backdrop-blur-md dark:bg-gray-800/50 dark:ring-1 dark:ring-gray-700'>
-      <button
-        onClick={onToggle}
-        className='w-full px-6 py-4 flex items-center justify-between bg-gray-50/70 dark:bg-gray-800/60 hover:bg-gray-100/80 dark:hover:bg-gray-700/60 transition-colors'
-      >
-        <div className='flex items-center gap-3'>
-          {icon}
-          <h3 className='text-lg font-medium text-gray-900 dark:text-gray-100'>
-            {title}
-          </h3>
-        </div>
-        <div className='text-gray-500 dark:text-gray-400'>
-          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-        </div>
-      </button>
-
-      {isExpanded && <div className='px-6 py-4'>{children}</div>}
-    </div>
-  );
-};
 
 // 用户配置组件
 interface UserConfigProps {
@@ -2551,6 +2508,8 @@ const VideoSourceConfig = ({
   const { isLoading, withLoading } = useLoadingState();
   const [sources, setSources] = useState<DataSource[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  // 正在编辑的源 key（null 表示表单处于"新增"模式）
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [orderChanged, setOrderChanged] = useState(false);
   const [newSource, setNewSource] = useState<DataSource>({
     name: '',
@@ -2599,6 +2558,52 @@ const VideoSourceConfig = ({
       resultCount: number;
     }>
   >([]);
+
+  // 有效性检测结果持久化：source key -> { status, checkedAt }
+  // 存 localStorage，页面刷新/重开后仍能看到上次的检测结论与检测时间
+  const VALIDATION_STORAGE_KEY = 'carecasttv_source_validation';
+  const [persistedValidation, setPersistedValidation] = useState<
+    Record<
+      string,
+      { status: 'valid' | 'no_results' | 'invalid'; checkedAt: number }
+    >
+  >({});
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(VALIDATION_STORAGE_KEY);
+      if (stored) setPersistedValidation(JSON.parse(stored));
+    } catch {
+      // 解析失败按未检测处理
+    }
+  }, []);
+
+  const savePersistedValidation = useCallback(
+    (key: string, status: 'valid' | 'no_results' | 'invalid') => {
+      setPersistedValidation((prev) => {
+        const next = { ...prev, [key]: { status, checkedAt: Date.now() } };
+        try {
+          localStorage.setItem(VALIDATION_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // 存储失败不影响本次展示
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  // 复制反馈：记录刚复制过的字段 id（`${key}-api` / `${key}-detail`）
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const copyText = async (text: string, fieldId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldId);
+      setTimeout(() => setCopiedField(null), 1500);
+    } catch {
+      showError('复制失败，请手动复制', showAlert);
+    }
+  };
 
   // 导入导出相关状态
   const [importExportModal, setImportExportModal] = useState<{
@@ -2667,6 +2672,17 @@ const VideoSourceConfig = ({
             from: 'custom',
           };
           sources.push(newSource);
+          break;
+        }
+        case 'edit': {
+          // 编辑源信息（key 不可改，被播放记录与关怀播放列表引用）
+          const source = sources.find((s) => s.key === payload.key);
+          if (source) {
+            source.name = payload.name;
+            source.api = payload.api;
+            source.detail = payload.detail || '';
+            source.from = 'custom';
+          }
           break;
         }
         case 'delete': {
@@ -2826,24 +2842,45 @@ const VideoSourceConfig = ({
       return;
     }
 
-    withLoading(`deleteSource_${key}`, () =>
-      callSourceApi({ action: 'delete', key }),
-    ).catch(() => {
-      console.error('操作失败', 'delete', key);
+    // 删除属于不可恢复操作，先弹二次确认
+    setConfirmModal({
+      isOpen: true,
+      title: '确认删除视频源',
+      message: `确定要删除视频源「${target.name}」（key: ${key}）吗？\n\n此操作不可恢复！`,
+      onConfirm: () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        withLoading(`deleteSource_${key}`, () =>
+          callSourceApi({ action: 'delete', key }),
+        ).catch(() => {
+          console.error('操作失败', 'delete', key);
+        });
+      },
+      onCancel: () => setConfirmModal((prev) => ({ ...prev, isOpen: false })),
     });
   };
 
   const handleAddSource = () => {
     if (!newSource.name || !newSource.key || !newSource.api) return;
     withLoading('addSource', async () => {
-      await callSourceApi({
-        action: 'add',
-        key: newSource.key,
-        name: newSource.name,
-        api: newSource.api,
-        detail: newSource.detail,
-        is_adult: newSource.is_adult || false,
-      });
+      if (editingKey) {
+        // 编辑模式：只更新 name/api/detail（key 不可改）
+        await callSourceApi({
+          action: 'edit',
+          key: editingKey,
+          name: newSource.name,
+          api: newSource.api,
+          detail: newSource.detail,
+        });
+      } else {
+        await callSourceApi({
+          action: 'add',
+          key: newSource.key,
+          name: newSource.name,
+          api: newSource.api,
+          detail: newSource.detail,
+          is_adult: newSource.is_adult || false,
+        });
+      }
       setNewSource({
         name: '',
         key: '',
@@ -2853,10 +2890,18 @@ const VideoSourceConfig = ({
         is_adult: false,
         from: 'custom',
       });
+      setEditingKey(null);
       setShowAddForm(false);
     }).catch(() => {
-      console.error('操作失败', 'add', newSource);
+      console.error('操作失败', editingKey ? 'edit' : 'add', newSource);
     });
+  };
+
+  // 进入编辑模式：把该源信息填入表单
+  const handleStartEdit = (source: DataSource) => {
+    setNewSource({ ...source, detail: source.detail || '' });
+    setEditingKey(source.key);
+    setShowAddForm(true);
   };
 
   const handleDragEnd = (event: any) => {
@@ -2974,6 +3019,10 @@ const VideoSourceConfig = ({
 
               case 'source_result':
               case 'source_error':
+                // 最终结果写入持久化存储（带检测时间）
+                if (data.status && data.status !== 'validating') {
+                  savePersistedValidation(data.source, data.status);
+                }
                 // 更新验证结果
                 setValidationResults((prev) => {
                   const existing = prev.find((r) => r.key === data.source);
@@ -3066,11 +3115,14 @@ const VideoSourceConfig = ({
     });
   };
 
-  // 一键选中失效视频源（状态为 no_results 或 invalid）
+  // 一键选中失效视频源（状态为 no_results 或 invalid，含历史持久化结果）
   const handleSelectInvalidSources = useCallback(() => {
-    const invalidKeys = validationResults
-      .filter((r) => r.status === 'no_results' || r.status === 'invalid')
-      .map((r) => r.key);
+    const invalidKeys = sources
+      .filter((s) => {
+        const v = persistedValidation[s.key];
+        return v && (v.status === 'no_results' || v.status === 'invalid');
+      })
+      .map((s) => s.key);
 
     if (invalidKeys.length === 0) {
       showAlert({
@@ -3089,14 +3141,15 @@ const VideoSourceConfig = ({
       message: `已选中 ${invalidKeys.length} 个失效或无法搜索的视频源`,
       timer: 3000,
     });
-  }, [validationResults, showAlert]);
+  }, [sources, persistedValidation, showAlert]);
 
-  // 获取失效视频源数量
+  // 获取失效视频源数量（含历史持久化结果）
   const invalidSourceCount = useMemo(() => {
-    return validationResults.filter(
-      (r) => r.status === 'no_results' || r.status === 'invalid',
-    ).length;
-  }, [validationResults]);
+    return sources.filter((s) => {
+      const v = persistedValidation[s.key];
+      return v && (v.status === 'no_results' || v.status === 'invalid');
+    }).length;
+  }, [sources, persistedValidation]);
 
   // 一键插入CSP模板
   const handleInsertCspTemplate = async () => {
@@ -3356,27 +3409,32 @@ const VideoSourceConfig = ({
     };
   };
 
-  // 获取有效性状态显示
+  // 获取有效性状态显示：检测中读实时状态，其余读持久化结果（带检测时间）
   const getValidationStatus = (sourceKey: string) => {
-    const result = validationResults.find((r) => r.key === sourceKey);
-    if (!result) return null;
+    const live = validationResults.find((r) => r.key === sourceKey);
+    if (live?.status === 'validating') {
+      return {
+        text: '检测中',
+        className:
+          'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300',
+        icon: '⟳',
+        message: live.message,
+        checkedAt: null as number | null,
+      };
+    }
 
-    switch (result.status) {
-      case 'validating':
-        return {
-          text: '检测中',
-          className:
-            'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300',
-          icon: '⟳',
-          message: result.message,
-        };
+    const persisted = persistedValidation[sourceKey];
+    if (!persisted) return null;
+
+    switch (persisted.status) {
       case 'valid':
         return {
           text: '有效',
           className:
             'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300',
           icon: '✓',
-          message: result.message,
+          message: '搜索正常',
+          checkedAt: persisted.checkedAt as number | null,
         };
       case 'no_results':
         return {
@@ -3384,7 +3442,8 @@ const VideoSourceConfig = ({
           className:
             'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300',
           icon: '⚠',
-          message: result.message,
+          message: '无法搜索到结果',
+          checkedAt: persisted.checkedAt as number | null,
         };
       case 'invalid':
         return {
@@ -3392,7 +3451,8 @@ const VideoSourceConfig = ({
           className:
             'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300',
           icon: '✗',
-          message: result.message,
+          message: '连接失败',
+          checkedAt: persisted.checkedAt as number | null,
         };
       default:
         return null;
@@ -3431,9 +3491,10 @@ const VideoSourceConfig = ({
             className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600'
           />
         </td>
+        {/* 第一列：名称 + Key（换行展示） */}
         <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100'>
           <div className='flex items-center space-x-2'>
-            <span>{source.name}</span>
+            <span className='font-medium'>{source.name}</span>
             {source.from === 'config' && (
               <span
                 className='px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
@@ -3443,56 +3504,63 @@ const VideoSourceConfig = ({
               </span>
             )}
           </div>
+          <div className='mt-0.5 text-xs text-gray-400 font-mono'>
+            {source.key}
+          </div>
         </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100'>
-          {source.key}
+        {/* 第二列：Api + Detail（换行、带 label 与复制按钮） */}
+        <td className='px-6 py-4 text-sm text-gray-900 dark:text-gray-100'>
+          <div className='space-y-1'>
+            <div className='flex items-center gap-1.5'>
+              <button
+                onClick={() => copyText(source.api, `${source.key}-api`)}
+                className='shrink-0 text-gray-400 hover:text-[color:var(--brand-color)] transition-colors'
+                title='复制 API 地址'
+              >
+                {copiedField === `${source.key}-api` ? (
+                  <Check className='w-3.5 h-3.5 text-orange-500' />
+                ) : (
+                  <Copy className='w-3.5 h-3.5' />
+                )}
+              </button>
+              <span className='shrink-0 text-xs text-gray-400'>Api:</span>
+              <span
+                className='truncate max-w-52 xl:max-w-72'
+                title={source.api}
+              >
+                {source.api}
+              </span>
+            </div>
+            <div className='flex items-center gap-1.5'>
+              {source.detail ? (
+                <button
+                  onClick={() =>
+                    copyText(source.detail || '', `${source.key}-detail`)
+                  }
+                  className='shrink-0 text-gray-400 hover:text-[color:var(--brand-color)] transition-colors'
+                  title='复制 Detail 地址'
+                >
+                  {copiedField === `${source.key}-detail` ? (
+                    <Check className='w-3.5 h-3.5 text-orange-500' />
+                  ) : (
+                    <Copy className='w-3.5 h-3.5' />
+                  )}
+                </button>
+              ) : (
+                <span className='w-3.5' />
+              )}
+              <span className='shrink-0 text-xs text-gray-400'>Detail:</span>
+              <span
+                className='truncate max-w-52 xl:max-w-72'
+                title={source.detail || '-'}
+              >
+                {source.detail || '-'}
+              </span>
+            </div>
+          </div>
         </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-48 truncate'
-          title={source.api}
-        >
-          {source.api}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-32 truncate'
-          title={source.detail || '-'}
-        >
-          {source.detail || '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-4'>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              !source.disabled
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
-            }`}
-          >
-            {!source.disabled ? '启用中' : '已禁用'}
-          </span>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-center'>
-          <button
-            onClick={() => handleToggleAdult(source.key)}
-            disabled={isLoading(`toggleAdult_${source.key}`)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-              source.is_adult
-                ? 'bg-linear-to-r from-red-500 to-pink-500'
-                : 'bg-gray-300 dark:bg-gray-600'
-            } ${
-              isLoading(`toggleAdult_${source.key}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : 'cursor-pointer hover:opacity-80'
-            }`}
-            title={source.is_adult ? '成人资源' : '普通资源'}
-          >
-            <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                source.is_adult ? 'translate-x-5' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-4'>
+        {/* 第三列：有效性（持久化结果 + 最后检测时间） */}
+        <td className='px-6 py-4 whitespace-nowrap'>
           {(() => {
             const status = getValidationStatus(source.key);
             if (!status) {
@@ -3503,36 +3571,56 @@ const VideoSourceConfig = ({
               );
             }
             return (
-              <span
-                className={`px-2 py-1 text-xs rounded-full ${status.className}`}
-                title={status.message}
-              >
-                {status.icon} {status.text}
-              </span>
+              <div>
+                <span
+                  className={`px-2 py-1 text-xs rounded-full ${status.className}`}
+                  title={status.message}
+                >
+                  {status.icon} {status.text}
+                </span>
+                {status.checkedAt && (
+                  <div className='mt-1.5 text-[10px] text-gray-400'>
+                    {formatRelativeTime(status.checkedAt)}检测
+                  </div>
+                )}
+              </div>
             );
           })()}
         </td>
+        {/* 第四列：是否启用（TDesign Switch，可操作也展示状态） */}
+        <td className='px-6 py-4 whitespace-nowrap text-center'>
+          <Switch
+            size='large'
+            label={['启用', '禁用']}
+            value={!source.disabled}
+            loading={isLoading(`toggleSource_${source.key}`)}
+            onChange={() => handleToggleEnable(source.key)}
+          />
+        </td>
+        {/* 第五列：是否成人资源（TDesign Switch） */}
+        <td className='px-6 py-4 whitespace-nowrap text-center'>
+          <Switch
+            size='large'
+            label={['是', '否']}
+            value={!!source.is_adult}
+            loading={isLoading(`toggleAdult_${source.key}`)}
+            onChange={() => handleToggleAdult(source.key)}
+          />
+        </td>
+        {/* 第六列：操作（仅 编辑 / 删除，删除有二次确认） */}
         <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
           <button
-            onClick={() => handleToggleEnable(source.key)}
-            disabled={isLoading(`toggleSource_${source.key}`)}
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
-              !source.disabled
-                ? buttonStyles.roundedDanger
-                : buttonStyles.roundedSuccess
-            } transition-colors ${
-              isLoading(`toggleSource_${source.key}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
+            onClick={() => handleStartEdit(source)}
+            className={buttonStyles.roundedPrimary}
+            title='编辑名称 / API 地址 / Detail 地址'
           >
-            {!source.disabled ? '禁用' : '启用'}
+            编辑
           </button>
           {source.from !== 'config' && (
             <button
               onClick={() => handleDelete(source.key)}
               disabled={isLoading(`deleteSource_${source.key}`)}
-              className={`${buttonStyles.roundedSecondary} ${
+              className={`${buttonStyles.roundedDanger} ${
                 isLoading(`deleteSource_${source.key}`)
                   ? 'opacity-50 cursor-not-allowed'
                   : ''
@@ -3936,7 +4024,22 @@ const VideoSourceConfig = ({
               )}
             </button>
             <button
-              onClick={() => setShowAddForm(!showAddForm)}
+              onClick={() => {
+                if (showAddForm) {
+                  // 关闭表单时重置编辑状态
+                  setEditingKey(null);
+                  setNewSource({
+                    name: '',
+                    key: '',
+                    api: '',
+                    detail: '',
+                    disabled: false,
+                    is_adult: false,
+                    from: 'custom',
+                  });
+                }
+                setShowAddForm(!showAddForm);
+              }}
               className={
                 showAddForm ? buttonStyles.secondary : buttonStyles.success
               }
@@ -3974,7 +4077,10 @@ const VideoSourceConfig = ({
               onChange={(e) =>
                 setNewSource((prev) => ({ ...prev, key: e.target.value }))
               }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              // 编辑模式下 key 不可修改：它被播放记录与关怀播放列表引用
+              disabled={!!editingKey}
+              title={editingKey ? 'key 不可修改' : undefined}
+              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
             />
             <input
               type='text'
@@ -3996,8 +4102,10 @@ const VideoSourceConfig = ({
             />
           </div>
 
-          {/* 成人资源标记 */}
-          <div className='flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
+          {/* 成人资源标记（编辑模式下用列表里的开关切换，这里隐藏） */}
+          <div
+            className={`flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 ${editingKey ? 'hidden' : ''}`}
+          >
             <div className='flex items-center space-x-2'>
               <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>
                 标记为成人资源
@@ -4045,7 +4153,11 @@ const VideoSourceConfig = ({
                   : buttonStyles.success
               }`}
             >
-              {isLoading('addSource') ? '添加中...' : '添加'}
+              {isLoading('addSource')
+                ? '保存中...'
+                : editingKey
+                  ? '保存修改'
+                  : '添加'}
             </button>
           </div>
         </div>
@@ -4076,25 +4188,19 @@ const VideoSourceConfig = ({
                   />
                 </th>
                 <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  名称
+                  名称｜Key
                 </th>
                 <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  Key
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  API 地址
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  Detail 地址
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  状态
-                </th>
-                <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  成人资源
+                  API / Detail
                 </th>
                 <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                   有效性
+                </th>
+                <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  是否启用
+                </th>
+                <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+                  是否成人资源
                 </th>
                 <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
                   操作
@@ -4763,9 +4869,6 @@ const ConfigFileComponent = ({
         type: 'movie' | 'tv';
         query: string;
       }[];
-      lives?: {
-        [key: string]: { name: string; url: string; ua?: string; epg?: string };
-      };
     }
 
     let parsed: ConfigFileStruct = {};
@@ -4786,9 +4889,6 @@ const ConfigFileComponent = ({
       );
       const customCategories = (prev.CustomCategories || []).filter(
         (c) => c.from !== 'config',
-      );
-      const customLives = (prev.LiveConfig || []).filter(
-        (l) => l.from !== 'config',
       );
 
       // 从配置文件解析新的预设源
@@ -4812,19 +4912,6 @@ const ConfigFileComponent = ({
         disabled: false,
       }));
 
-      const configLives = Object.entries(parsed.lives || {}).map(
-        ([key, live]) => ({
-          key,
-          name: live.name,
-          url: live.url,
-          ua: live.ua,
-          epg: live.epg,
-          channelNumber: 0,
-          from: 'config' as const,
-          disabled: false,
-        }),
-      );
-
       return {
         ...prev,
         ConfigFile: configFileContent,
@@ -4835,7 +4922,6 @@ const ConfigFileComponent = ({
         },
         SourceConfig: [...configSources, ...customSources],
         CustomCategories: [...configCategories, ...customCategories],
-        LiveConfig: [...configLives, ...customLives],
       };
     });
   };
@@ -5537,41 +5623,7 @@ const SiteConfigComponent = ({
         />
       </div>
 
-      {/* 成人内容过滤 */}
-      <div>
-        <div className='flex items-center justify-between'>
-          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-            启用成人内容过滤
-          </label>
-          <button
-            type='button'
-            onClick={() =>
-              setSiteSettings((prev) => ({
-                ...prev,
-                DisableYellowFilter: !prev.DisableYellowFilter,
-              }))
-            }
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
-              !siteSettings.DisableYellowFilter
-                ? buttonStyles.toggleOn
-                : buttonStyles.toggleOff
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full ${
-                buttonStyles.toggleThumb
-              } transition-transform ${
-                !siteSettings.DisableYellowFilter
-                  ? buttonStyles.toggleThumbOn
-                  : buttonStyles.toggleThumbOff
-              }`}
-            />
-          </button>
-        </div>
-        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-          开启后将过滤标记为成人资源的视频源和包含敏感关键词的内容。关闭后显示所有内容。
-        </p>
-      </div>
+      {/* 成人内容过滤：CareCastTV 硬性开启，不提供关闭开关 */}
 
       {/* 流式搜索 */}
       <div>
@@ -5692,2604 +5744,6 @@ const SiteConfigComponent = ({
   );
 };
 
-// 直播源配置组件
-const LiveSourceConfig = ({
-  config,
-  refreshConfig,
-  storageMode,
-  updateConfig,
-}: {
-  config: AdminConfig | null;
-  refreshConfig: () => Promise<void>;
-  storageMode: 'cloud' | 'local';
-  updateConfig: (
-    updater: (prev: AdminConfig | null) => AdminConfig | null,
-  ) => void;
-}) => {
-  const { alertModal, showAlert, hideAlert } = useAlertModal();
-  const { isLoading, withLoading } = useLoadingState();
-  const [liveSources, setLiveSources] = useState<LiveDataSource[]>([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingLiveSource, setEditingLiveSource] =
-    useState<LiveDataSource | null>(null);
-  const [orderChanged, setOrderChanged] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [newLiveSource, setNewLiveSource] = useState<LiveDataSource>({
-    name: '',
-    key: '',
-    url: '',
-    ua: '',
-    epg: '',
-    disabled: false,
-    from: 'custom',
-  });
-
-  // dnd-kit 传感器
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5, // 轻微位移即可触发
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 150, // 长按 150ms 后触发，避免与滚动冲突
-        tolerance: 5,
-      },
-    }),
-  );
-
-  // 初始化
-  useEffect(() => {
-    if (config?.LiveConfig) {
-      setLiveSources(config.LiveConfig);
-      // 进入时重置 orderChanged
-      setOrderChanged(false);
-    }
-  }, [config]);
-
-  // 本地模式下直接更新配置
-  const updateLiveConfigLocally = (
-    action: string,
-    payload: Record<string, any>,
-  ) => {
-    updateConfig((prev) => {
-      if (!prev) return prev;
-      const sources = [...(prev.LiveConfig || [])];
-
-      switch (action) {
-        case 'add': {
-          const newSource: LiveDataSource = {
-            key: payload.key,
-            name: payload.name,
-            url: payload.url,
-            ua: payload.ua || '',
-            epg: payload.epg || '',
-            disabled: false,
-            from: 'custom',
-            channelNumber: 0,
-          };
-          sources.push(newSource);
-          break;
-        }
-        case 'delete': {
-          const idx = sources.findIndex((s) => s.key === payload.key);
-          if (idx !== -1) sources.splice(idx, 1);
-          break;
-        }
-        case 'enable': {
-          const source = sources.find((s) => s.key === payload.key);
-          if (source) source.disabled = false;
-          break;
-        }
-        case 'disable': {
-          const source = sources.find((s) => s.key === payload.key);
-          if (source) source.disabled = true;
-          break;
-        }
-        case 'update': {
-          const source = sources.find((s) => s.key === payload.key);
-          if (source) {
-            source.name = payload.name ?? source.name;
-            source.url = payload.url ?? source.url;
-            source.ua = payload.ua ?? source.ua;
-            source.epg = payload.epg ?? source.epg;
-          }
-          break;
-        }
-        case 'sort': {
-          if (payload.order && Array.isArray(payload.order)) {
-            const orderMap = new Map(
-              payload.order.map((key: string, idx: number) => [key, idx]),
-            );
-            sources.sort((a, b) => {
-              const aIdx = orderMap.get(a.key) ?? 999;
-              const bIdx = orderMap.get(b.key) ?? 999;
-              return aIdx - bIdx;
-            });
-          }
-          break;
-        }
-      }
-
-      return { ...prev, LiveConfig: sources };
-    });
-  };
-
-  // 通用 API 请求
-  const callLiveSourceApi = async (body: Record<string, any>) => {
-    // 本地模式：直接更新配置，不调用 API
-    if (storageMode === 'local') {
-      updateLiveConfigLocally(body.action, body);
-      showAlert({
-        type: 'success',
-        title: '操作成功',
-        message: '配置已保存到本地',
-        timer: 2000,
-      });
-      return;
-    }
-
-    try {
-      const resp = await fetch('/api/admin/live', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body }),
-      });
-
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data.error || `操作失败: ${resp.status}`);
-      }
-
-      // 成功后刷新配置
-      await refreshConfig();
-    } catch (err) {
-      showError(err instanceof Error ? err.message : '操作失败', showAlert);
-      throw err; // 向上抛出方便调用处判断
-    }
-  };
-
-  const handleToggleEnable = (key: string) => {
-    const target = liveSources.find((s) => s.key === key);
-    if (!target) return;
-    const action = target.disabled ? 'enable' : 'disable';
-    withLoading(`toggleLiveSource_${key}`, () =>
-      callLiveSourceApi({ action, key }),
-    ).catch(() => {
-      console.error('操作失败', action, key);
-    });
-  };
-
-  const handleDelete = (key: string) => {
-    withLoading(`deleteLiveSource_${key}`, () =>
-      callLiveSourceApi({ action: 'delete', key }),
-    ).catch(() => {
-      console.error('操作失败', 'delete', key);
-    });
-  };
-
-  // 刷新直播源
-  const handleRefreshLiveSources = async () => {
-    if (isRefreshing) return;
-
-    await withLoading('refreshLiveSources', async () => {
-      setIsRefreshing(true);
-      try {
-        const response = await fetch('/api/admin/live/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || `刷新失败: ${response.status}`);
-        }
-
-        // 刷新成功后重新获取配置
-        await refreshConfig();
-        showAlert({
-          type: 'success',
-          title: '刷新成功',
-          message: '直播源已刷新',
-          timer: 2000,
-        });
-      } catch (err) {
-        showError(err instanceof Error ? err.message : '刷新失败', showAlert);
-        throw err;
-      } finally {
-        setIsRefreshing(false);
-      }
-    });
-  };
-
-  const handleAddLiveSource = () => {
-    if (!newLiveSource.name || !newLiveSource.key || !newLiveSource.url) return;
-    withLoading('addLiveSource', async () => {
-      await callLiveSourceApi({
-        action: 'add',
-        key: newLiveSource.key,
-        name: newLiveSource.name,
-        url: newLiveSource.url,
-        ua: newLiveSource.ua,
-        epg: newLiveSource.epg,
-      });
-      setNewLiveSource({
-        name: '',
-        key: '',
-        url: '',
-        epg: '',
-        ua: '',
-        disabled: false,
-        from: 'custom',
-      });
-      setShowAddForm(false);
-    }).catch(() => {
-      console.error('操作失败', 'add', newLiveSource);
-    });
-  };
-
-  const handleEditLiveSource = () => {
-    if (!editingLiveSource || !editingLiveSource.name || !editingLiveSource.url)
-      return;
-    withLoading('editLiveSource', async () => {
-      await callLiveSourceApi({
-        action: 'edit',
-        key: editingLiveSource.key,
-        name: editingLiveSource.name,
-        url: editingLiveSource.url,
-        ua: editingLiveSource.ua,
-        epg: editingLiveSource.epg,
-      });
-      setEditingLiveSource(null);
-    }).catch(() => {
-      console.error('操作失败', 'edit', editingLiveSource);
-    });
-  };
-
-  const handleCancelEdit = () => {
-    setEditingLiveSource(null);
-  };
-
-  const handleDragEnd = (event: any) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = liveSources.findIndex((s) => s.key === active.id);
-    const newIndex = liveSources.findIndex((s) => s.key === over.id);
-    setLiveSources((prev) => arrayMove(prev, oldIndex, newIndex));
-    setOrderChanged(true);
-  };
-
-  const handleSaveOrder = () => {
-    const order = liveSources.map((s) => s.key);
-    withLoading('saveLiveSourceOrder', () =>
-      callLiveSourceApi({ action: 'sort', order }),
-    )
-      .then(() => {
-        setOrderChanged(false);
-      })
-      .catch(() => {
-        console.error('操作失败', 'sort', order);
-      });
-  };
-
-  // 可拖拽行封装 (dnd-kit)
-  const DraggableRow = ({ liveSource }: { liveSource: LiveDataSource }) => {
-    const { attributes, listeners, setNodeRef, transform, transition } =
-      useSortable({ id: liveSource.key });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    } as React.CSSProperties;
-
-    return (
-      <tr
-        ref={setNodeRef}
-        style={style}
-        className='hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors select-none'
-      >
-        <td
-          className='px-2 py-4 cursor-grab text-gray-400'
-          style={{ touchAction: 'none' }}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} />
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100'>
-          {liveSource.name}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100'>
-          {liveSource.key}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-48 truncate'
-          title={liveSource.url}
-        >
-          {liveSource.url}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-32 truncate'
-          title={liveSource.epg || '-'}
-        >
-          {liveSource.epg || '-'}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-32 truncate'
-          title={liveSource.ua || '-'}
-        >
-          {liveSource.ua || '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 text-center'>
-          {liveSource.channelNumber && liveSource.channelNumber > 0
-            ? liveSource.channelNumber
-            : '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-4'>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              !liveSource.disabled
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
-            }`}
-          >
-            {!liveSource.disabled ? '启用中' : '已禁用'}
-          </span>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
-          <button
-            onClick={() => handleToggleEnable(liveSource.key)}
-            disabled={isLoading(`toggleLiveSource_${liveSource.key}`)}
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
-              !liveSource.disabled
-                ? buttonStyles.roundedDanger
-                : buttonStyles.roundedSuccess
-            } transition-colors ${
-              isLoading(`toggleLiveSource_${liveSource.key}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
-          >
-            {!liveSource.disabled ? '禁用' : '启用'}
-          </button>
-          {liveSource.from !== 'config' && (
-            <>
-              <button
-                onClick={() => setEditingLiveSource(liveSource)}
-                disabled={isLoading(`editLiveSource_${liveSource.key}`)}
-                className={`${buttonStyles.roundedPrimary} ${
-                  isLoading(`editLiveSource_${liveSource.key}`)
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                }`}
-              >
-                编辑
-              </button>
-              <button
-                onClick={() => handleDelete(liveSource.key)}
-                disabled={isLoading(`deleteLiveSource_${liveSource.key}`)}
-                className={`${buttonStyles.roundedSecondary} ${
-                  isLoading(`deleteLiveSource_${liveSource.key}`)
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                }`}
-              >
-                删除
-              </button>
-            </>
-          )}
-        </td>
-      </tr>
-    );
-  };
-
-  if (!config) {
-    return (
-      <div className='text-center text-gray-500 dark:text-gray-400'>
-        加载中...
-      </div>
-    );
-  }
-
-  return (
-    <div className='space-y-6'>
-      {/* 添加直播源表单 */}
-      <div className='flex items-center justify-between'>
-        <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-          直播源列表
-        </h4>
-        <div className='flex items-center space-x-2'>
-          <button
-            onClick={handleRefreshLiveSources}
-            disabled={isRefreshing || isLoading('refreshLiveSources')}
-            className={`px-3 py-1.5 text-sm font-medium flex items-center space-x-2 ${
-              isRefreshing || isLoading('refreshLiveSources')
-                ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed text-white rounded-lg'
-                : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg transition-colors'
-            }`}
-          >
-            <span>
-              {isRefreshing || isLoading('refreshLiveSources')
-                ? '刷新中...'
-                : '刷新直播源'}
-            </span>
-          </button>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className={
-              showAddForm ? buttonStyles.secondary : buttonStyles.success
-            }
-          >
-            {showAddForm ? '取消' : '添加直播源'}
-          </button>
-        </div>
-      </div>
-
-      {showAddForm && (
-        <div className='p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 space-y-4'>
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-            <input
-              type='text'
-              placeholder='名称'
-              value={newLiveSource.name}
-              onChange={(e) =>
-                setNewLiveSource((prev) => ({ ...prev, name: e.target.value }))
-              }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-            />
-            <input
-              type='text'
-              placeholder='Key'
-              value={newLiveSource.key}
-              onChange={(e) =>
-                setNewLiveSource((prev) => ({ ...prev, key: e.target.value }))
-              }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-            />
-            <input
-              type='text'
-              placeholder='M3U 地址'
-              value={newLiveSource.url}
-              onChange={(e) =>
-                setNewLiveSource((prev) => ({ ...prev, url: e.target.value }))
-              }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-            />
-            <input
-              type='text'
-              placeholder='节目单地址（选填）'
-              value={newLiveSource.epg}
-              onChange={(e) =>
-                setNewLiveSource((prev) => ({ ...prev, epg: e.target.value }))
-              }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-            />
-            <input
-              type='text'
-              placeholder='自定义 UA（选填）'
-              value={newLiveSource.ua}
-              onChange={(e) =>
-                setNewLiveSource((prev) => ({ ...prev, ua: e.target.value }))
-              }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-            />
-          </div>
-          <div className='flex justify-end'>
-            <button
-              onClick={handleAddLiveSource}
-              disabled={
-                !newLiveSource.name ||
-                !newLiveSource.key ||
-                !newLiveSource.url ||
-                isLoading('addLiveSource')
-              }
-              className={`w-full sm:w-auto px-4 py-2 ${
-                !newLiveSource.name ||
-                !newLiveSource.key ||
-                !newLiveSource.url ||
-                isLoading('addLiveSource')
-                  ? buttonStyles.disabled
-                  : buttonStyles.success
-              }`}
-            >
-              {isLoading('addLiveSource') ? '添加中...' : '添加'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 编辑直播源表单 */}
-      {editingLiveSource && (
-        <div className='p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 space-y-4'>
-          <div className='flex items-center justify-between'>
-            <h5 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-              编辑直播源: {editingLiveSource.name}
-            </h5>
-            <button
-              onClick={handleCancelEdit}
-              className='text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
-            >
-              ✕
-            </button>
-          </div>
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-            <div>
-              <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                名称
-              </label>
-              <input
-                type='text'
-                value={editingLiveSource.name}
-                onChange={(e) =>
-                  setEditingLiveSource((prev) =>
-                    prev ? { ...prev, name: e.target.value } : null,
-                  )
-                }
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-            </div>
-            <div>
-              <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                Key (不可编辑)
-              </label>
-              <input
-                type='text'
-                value={editingLiveSource.key}
-                disabled
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-              />
-            </div>
-            <div>
-              <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                M3U 地址
-              </label>
-              <input
-                type='text'
-                value={editingLiveSource.url}
-                onChange={(e) =>
-                  setEditingLiveSource((prev) =>
-                    prev ? { ...prev, url: e.target.value } : null,
-                  )
-                }
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-            </div>
-            <div>
-              <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                节目单地址（选填）
-              </label>
-              <input
-                type='text'
-                value={editingLiveSource.epg}
-                onChange={(e) =>
-                  setEditingLiveSource((prev) =>
-                    prev ? { ...prev, epg: e.target.value } : null,
-                  )
-                }
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-            </div>
-            <div>
-              <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                自定义 UA（选填）
-              </label>
-              <input
-                type='text'
-                value={editingLiveSource.ua}
-                onChange={(e) =>
-                  setEditingLiveSource((prev) =>
-                    prev ? { ...prev, ua: e.target.value } : null,
-                  )
-                }
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-              />
-            </div>
-          </div>
-          <div className='flex justify-end space-x-2'>
-            <button
-              onClick={handleCancelEdit}
-              className={buttonStyles.secondary}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleEditLiveSource}
-              disabled={
-                !editingLiveSource.name ||
-                !editingLiveSource.url ||
-                isLoading('editLiveSource')
-              }
-              className={`${
-                !editingLiveSource.name ||
-                !editingLiveSource.url ||
-                isLoading('editLiveSource')
-                  ? buttonStyles.disabled
-                  : buttonStyles.success
-              }`}
-            >
-              {isLoading('editLiveSource') ? '保存中...' : '保存'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 直播源表格 */}
-      <div
-        className='border border-gray-200 dark:border-gray-700 rounded-lg max-h-112 overflow-y-auto overflow-x-auto relative'
-        data-table='live-source-list'
-      >
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-          autoScroll={false}
-          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-        >
-          <table className='min-w-full divide-y divide-gray-200 dark:divide-gray-700'>
-            <thead className='bg-gray-50 dark:bg-gray-900 sticky top-0 z-10'>
-              <tr>
-                <th className='w-8' />
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  名称
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  Key
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  M3U 地址
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  节目单地址
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  自定义 UA
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  频道数
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  状态
-                </th>
-                <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <SortableContext
-              items={liveSources.map((s) => s.key)}
-              strategy={verticalListSortingStrategy}
-            >
-              <tbody className='divide-y divide-gray-200 dark:divide-gray-700'>
-                {liveSources.map((liveSource) => (
-                  <DraggableRow key={liveSource.key} liveSource={liveSource} />
-                ))}
-              </tbody>
-            </SortableContext>
-          </table>
-        </DndContext>
-      </div>
-
-      {/* 保存排序按钮 */}
-      {orderChanged && (
-        <div className='flex justify-end'>
-          <button
-            onClick={handleSaveOrder}
-            disabled={isLoading('saveLiveSourceOrder')}
-            className={`px-3 py-1.5 text-sm ${
-              isLoading('saveLiveSourceOrder')
-                ? buttonStyles.disabled
-                : buttonStyles.primary
-            }`}
-          >
-            {isLoading('saveLiveSourceOrder') ? '保存中...' : '保存排序'}
-          </button>
-        </div>
-      )}
-
-      {/* 通用弹窗组件 */}
-      <AlertModal
-        isOpen={alertModal.isOpen}
-        onClose={hideAlert}
-        type={alertModal.type}
-        title={alertModal.title}
-        message={alertModal.message}
-        timer={alertModal.timer}
-        showConfirm={alertModal.showConfirm}
-      />
-    </div>
-  );
-};
-
-// 弹幕配置组件
-interface DanmuConfigProps {
-  config: AdminConfig | null;
-  refreshConfig: () => Promise<void>;
-}
-
-interface DanmuNodeFormState {
-  name: string;
-  url: string;
-  token: string;
-}
-
-interface DanmuNodeHealthState {
-  status: 'idle' | 'testing' | 'ok' | 'error';
-  latency?: number;
-  error?: string;
-}
-
-interface DanmuSettingsState {
-  enabled: boolean;
-  serverUrl: string;
-  token: string;
-  platform: string;
-  sourceOrder: string;
-  mergeSourcePairs: string;
-  bilibiliCookie: string;
-  convertTopBottomToScroll: boolean;
-  convertColor: 'default' | 'white' | 'color';
-  danmuLimit: number;
-  blockedWords: string;
-  danmuOutputFormat: 'json' | 'xml';
-  simplifiedTraditional: 'default' | 'simplified' | 'traditional';
-  customNodes: DanmuCustomNode[];
-}
-
-const DANMU_CUSTOM_NODE_STORAGE_KEY = 'decotv:danmu:custom-nodes';
-const MAX_CUSTOM_DANMU_NODE_COUNT = 64;
-
-const RECOMMENDED_DANMU_SERVER = {
-  name: '官方推荐/稳定节点',
-  url: 'https://danmu.katelya.eu.org',
-  token: 'decotv',
-  badge: '官方推荐',
-};
-
-const DEPLOYMENT_GUIDE_URL = 'https://github.com/huangxd-/danmu_api';
-
-const DEMO_DANMU_SERVERS = [RECOMMENDED_DANMU_SERVER];
-
-const SOURCE_OPTIONS = [
-  { value: '360', label: '360搜索' },
-  { value: 'vod', label: 'VOD采集' },
-  { value: 'tmdb', label: 'TMDB' },
-  { value: 'douban', label: '豆瓣' },
-  { value: 'tencent', label: '腾讯视频' },
-  { value: 'youku', label: '优酷' },
-  { value: 'iqiyi', label: '爱奇艺' },
-  { value: 'imgo', label: '芒果TV' },
-  { value: 'bilibili', label: '哔哩哔哩' },
-  { value: 'migu', label: '咪咕视频' },
-  { value: 'sohu', label: '搜狐视频' },
-  { value: 'leshi', label: '乐视' },
-  { value: 'xigua', label: '西瓜视频' },
-  { value: 'renren', label: '人人视频' },
-  { value: 'hanjutv', label: '韩剧TV' },
-  { value: 'bahamut', label: '巴哈姆特' },
-  { value: 'dandan', label: '弹弹play' },
-  { value: 'animeko', label: 'Animeko' },
-  { value: 'custom', label: '自定义源' },
-];
-
-const PLATFORM_OPTIONS = [
-  { value: 'qiyi', label: '爱奇艺' },
-  { value: 'bilibili1', label: '哔哩哔哩' },
-  { value: 'imgo', label: '芒果TV' },
-  { value: 'youku', label: '优酷' },
-  { value: 'qq', label: '腾讯视频' },
-  { value: 'migu', label: '咪咕' },
-  { value: 'sohu', label: '搜狐' },
-  { value: 'leshi', label: '乐视' },
-  { value: 'xigua', label: '西瓜' },
-  { value: 'renren', label: '人人' },
-  { value: 'hanjutv', label: '韩剧TV' },
-  { value: 'bahamut', label: '巴哈姆特' },
-  { value: 'dandan', label: '弹弹play' },
-  { value: 'animeko', label: 'Animeko' },
-  { value: 'custom', label: '自定义' },
-];
-
-const DanmuConfigComponent = ({ config, refreshConfig }: DanmuConfigProps) => {
-  const { alertModal, showAlert, hideAlert } = useAlertModal();
-  const { isLoading, withLoading } = useLoadingState();
-
-  const [danmuSettings, setDanmuSettings] = useState<DanmuSettingsState>({
-    enabled: false,
-    serverUrl: RECOMMENDED_DANMU_SERVER.url,
-    token: RECOMMENDED_DANMU_SERVER.token,
-    platform: '',
-    sourceOrder: '',
-    mergeSourcePairs: '',
-    bilibiliCookie: '',
-    convertTopBottomToScroll: false,
-    convertColor: 'default' as 'default' | 'white' | 'color',
-    danmuLimit: 0,
-    blockedWords: '',
-    danmuOutputFormat: 'json' as 'json' | 'xml',
-    simplifiedTraditional: 'default' as
-      | 'default'
-      | 'simplified'
-      | 'traditional',
-    customNodes: [],
-  });
-
-  const [testResult, setTestResult] = useState<{
-    success?: boolean;
-    latency?: number;
-    searchAvailable?: boolean;
-    searchResultCount?: number;
-    error?: string;
-  } | null>(null);
-
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isNodeModalOpen, setIsNodeModalOpen] = useState(false);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [nodeForm, setNodeForm] = useState<DanmuNodeFormState>({
-    name: '',
-    url: '',
-    token: '',
-  });
-  const [nodeHealthMap, setNodeHealthMap] = useState<
-    Record<string, DanmuNodeHealthState>
-  >({});
-
-  const normalizeServerUrl = useCallback((value: string) => {
-    return value.trim().replace(/\/+$/, '');
-  }, []);
-
-  const createNodeId = useCallback(() => {
-    if (
-      typeof crypto !== 'undefined' &&
-      typeof crypto.randomUUID === 'function'
-    ) {
-      return crypto.randomUUID();
-    }
-    return `node_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
-  }, []);
-
-  // 统一过滤与规范化节点数据，避免脏数据写入配置。
-  const sanitizeCustomNodes = useCallback(
-    (value: unknown): DanmuCustomNode[] => {
-      if (!Array.isArray(value)) {
-        return [];
-      }
-
-      const now = Date.now();
-      const nodes: DanmuCustomNode[] = [];
-      for (const item of value) {
-        if (!item || typeof item !== 'object') {
-          continue;
-        }
-
-        const raw = item as Partial<DanmuCustomNode>;
-        const name = typeof raw.name === 'string' ? raw.name.trim() : '';
-        const url =
-          typeof raw.url === 'string' ? normalizeServerUrl(raw.url) : '';
-        if (!name || !url) {
-          continue;
-        }
-
-        const token = typeof raw.token === 'string' ? raw.token.trim() : '';
-        const createdAt =
-          typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt)
-            ? raw.createdAt
-            : now;
-        const updatedAt =
-          typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt)
-            ? raw.updatedAt
-            : now;
-        const id =
-          typeof raw.id === 'string' && raw.id.trim()
-            ? raw.id.trim()
-            : `node_${createdAt}_${nodes.length}`;
-
-        nodes.push({ id, name, url, token, createdAt, updatedAt });
-        if (nodes.length >= MAX_CUSTOM_DANMU_NODE_COUNT) {
-          break;
-        }
-      }
-
-      return nodes;
-    },
-    [normalizeServerUrl],
-  );
-
-  const loadCustomNodesFromStorage = useCallback((): DanmuCustomNode[] => {
-    if (typeof window === 'undefined') {
-      return [];
-    }
-    try {
-      const raw = window.localStorage.getItem(DANMU_CUSTOM_NODE_STORAGE_KEY);
-      if (!raw) {
-        return [];
-      }
-      return sanitizeCustomNodes(JSON.parse(raw));
-    } catch {
-      return [];
-    }
-  }, [sanitizeCustomNodes]);
-
-  const persistCustomNodesToStorage = useCallback(
-    (nodes: DanmuCustomNode[]) => {
-      if (typeof window === 'undefined') {
-        return;
-      }
-      try {
-        window.localStorage.setItem(
-          DANMU_CUSTOM_NODE_STORAGE_KEY,
-          JSON.stringify(nodes),
-        );
-      } catch {
-        // localStorage 异常不影响主流程。
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (config?.DanmuConfig) {
-      const configCustomNodes = sanitizeCustomNodes(
-        config.DanmuConfig.customNodes,
-      );
-      const customNodes =
-        configCustomNodes.length > 0
-          ? configCustomNodes
-          : loadCustomNodesFromStorage();
-      setDanmuSettings({
-        enabled: config.DanmuConfig.enabled ?? false,
-        serverUrl: normalizeServerUrl(config.DanmuConfig.serverUrl ?? ''),
-        token: config.DanmuConfig.token ?? '',
-        platform: config.DanmuConfig.platform ?? '',
-        sourceOrder: config.DanmuConfig.sourceOrder ?? '',
-        mergeSourcePairs: config.DanmuConfig.mergeSourcePairs ?? '',
-        bilibiliCookie: config.DanmuConfig.bilibiliCookie ?? '',
-        convertTopBottomToScroll:
-          config.DanmuConfig.convertTopBottomToScroll ?? false,
-        convertColor: config.DanmuConfig.convertColor ?? 'default',
-        danmuLimit: config.DanmuConfig.danmuLimit ?? 0,
-        blockedWords: config.DanmuConfig.blockedWords ?? '',
-        danmuOutputFormat: config.DanmuConfig.danmuOutputFormat ?? 'json',
-        simplifiedTraditional:
-          config.DanmuConfig.simplifiedTraditional ?? 'default',
-        customNodes,
-      });
-      return;
-    }
-    const fallbackNodes = loadCustomNodesFromStorage();
-    if (fallbackNodes.length > 0) {
-      setDanmuSettings((prev) => ({
-        ...prev,
-        customNodes: fallbackNodes,
-      }));
-    }
-  }, [
-    config,
-    loadCustomNodesFromStorage,
-    normalizeServerUrl,
-    sanitizeCustomNodes,
-  ]);
-
-  useEffect(() => {
-    persistCustomNodesToStorage(danmuSettings.customNodes);
-  }, [danmuSettings.customNodes, persistCustomNodesToStorage]);
-
-  // 构建实际 API 地址（baseUrl + token 拼接）
-  const getFullServerUrl = (
-    serverUrl = danmuSettings.serverUrl,
-    token = danmuSettings.token,
-  ) => {
-    const base = normalizeServerUrl(serverUrl);
-    if (!base) return '';
-    const safeToken = token.trim();
-    if (safeToken) {
-      return `${base}/${safeToken}`;
-    }
-    return base;
-  };
-
-  const persistDanmuSettings = useCallback(
-    async (nextSettings: DanmuSettingsState, successMessage: string) => {
-      const resp = await fetch('/api/admin/danmu', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nextSettings),
-      });
-      if (!resp.ok) {
-        const data = (await resp.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(data.error || '保存失败');
-      }
-      persistCustomNodesToStorage(nextSettings.customNodes);
-      await refreshConfig();
-      setDanmuSettings(nextSettings);
-      showSuccess(successMessage, showAlert);
-    },
-    [persistCustomNodesToStorage, refreshConfig, showAlert],
-  );
-
-  const handleSave = async () => {
-    await withLoading('saveDanmuConfig', async () => {
-      try {
-        await persistDanmuSettings(danmuSettings, '弹幕配置保存成功');
-      } catch (err) {
-        showError(`保存弹幕配置失败: ${(err as Error).message}`, showAlert);
-      }
-    });
-  };
-
-  const handleTest = async () => {
-    const url = getFullServerUrl();
-    if (!url) {
-      showError('请先填写弹幕服务器地址', showAlert);
-      return;
-    }
-    setTestResult(null);
-    await withLoading('testDanmuServer', async () => {
-      try {
-        const resp = await fetch('/api/admin/danmu/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serverUrl: url }),
-        });
-        const data = await resp.json();
-        setTestResult(data);
-      } catch (err) {
-        setTestResult({
-          success: false,
-          error: (err as Error).message,
-        });
-      }
-    });
-  };
-
-  const handleSelectDemoServer = (server: { url: string; token?: string }) => {
-    setDanmuSettings((prev) => ({
-      ...prev,
-      serverUrl: normalizeServerUrl(server.url),
-      token: server.token ?? prev.token,
-    }));
-    setTestResult(null);
-  };
-
-  const isNodeSelected = (node: DanmuCustomNode) => {
-    return (
-      normalizeServerUrl(danmuSettings.serverUrl) ===
-        normalizeServerUrl(node.url) &&
-      danmuSettings.token.trim() === node.token.trim()
-    );
-  };
-
-  const openAddNodeModal = () => {
-    setEditingNodeId(null);
-    setNodeForm({ name: '', url: '', token: '' });
-    setIsNodeModalOpen(true);
-  };
-
-  const openEditNodeModal = (node: DanmuCustomNode) => {
-    setEditingNodeId(node.id);
-    setNodeForm({
-      name: node.name,
-      url: node.url,
-      token: node.token,
-    });
-    setIsNodeModalOpen(true);
-  };
-
-  const closeNodeModal = () => {
-    setIsNodeModalOpen(false);
-    setEditingNodeId(null);
-    setNodeForm({ name: '', url: '', token: '' });
-  };
-
-  const handleSubmitNode = () => {
-    const name = nodeForm.name.trim();
-    const url = normalizeServerUrl(nodeForm.url);
-    const token = nodeForm.token.trim();
-
-    if (!name || !url) {
-      showError('节点名称和服务地址不能为空', showAlert);
-      return;
-    }
-
-    if (
-      !editingNodeId &&
-      danmuSettings.customNodes.length >= MAX_CUSTOM_DANMU_NODE_COUNT
-    ) {
-      showError(
-        `最多仅支持 ${MAX_CUSTOM_DANMU_NODE_COUNT} 个自定义节点`,
-        showAlert,
-      );
-      return;
-    }
-
-    const now = Date.now();
-    setDanmuSettings((prev) => {
-      if (editingNodeId) {
-        return {
-          ...prev,
-          customNodes: prev.customNodes.map((item) =>
-            item.id === editingNodeId
-              ? { ...item, name, url, token, updatedAt: now }
-              : item,
-          ),
-        };
-      }
-
-      const nextNode: DanmuCustomNode = {
-        id: createNodeId(),
-        name,
-        url,
-        token,
-        createdAt: now,
-        updatedAt: now,
-      };
-      return {
-        ...prev,
-        customNodes: [nextNode, ...prev.customNodes],
-      };
-    });
-
-    if (editingNodeId) {
-      setNodeHealthMap((prev) => {
-        const next = { ...prev };
-        delete next[editingNodeId];
-        return next;
-      });
-    }
-
-    setTestResult(null);
-    closeNodeModal();
-    showSuccess(editingNodeId ? '节点更新成功' : '节点添加成功', showAlert);
-  };
-
-  const handleDeleteNode = (node: DanmuCustomNode) => {
-    if (!window.confirm(`确认删除节点「${node.name}」吗？`)) {
-      return;
-    }
-
-    setDanmuSettings((prev) => ({
-      ...prev,
-      customNodes: prev.customNodes.filter((item) => item.id !== node.id),
-    }));
-    setNodeHealthMap((prev) => {
-      const next = { ...prev };
-      delete next[node.id];
-      return next;
-    });
-    showSuccess('节点已删除', showAlert);
-  };
-
-  const handleApplyNode = async (node: DanmuCustomNode) => {
-    const nextSettings: DanmuSettingsState = {
-      ...danmuSettings,
-      enabled: true,
-      serverUrl: node.url,
-      token: node.token,
-    };
-
-    await withLoading(`applyDanmuNode_${node.id}`, async () => {
-      try {
-        await persistDanmuSettings(nextSettings, `已应用节点：${node.name}`);
-        setTestResult(null);
-      } catch (err) {
-        showError(`应用节点失败: ${(err as Error).message}`, showAlert);
-      }
-    });
-  };
-
-  const handleTestNode = async (node: DanmuCustomNode) => {
-    const fullUrl = getFullServerUrl(node.url, node.token);
-    if (!fullUrl) {
-      showError('节点地址不合法', showAlert);
-      return;
-    }
-
-    setNodeHealthMap((prev) => ({
-      ...prev,
-      [node.id]: { status: 'testing' },
-    }));
-
-    await withLoading(`testDanmuNode_${node.id}`, async () => {
-      try {
-        const resp = await fetch('/api/admin/danmu/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serverUrl: fullUrl }),
-        });
-        const data = (await resp.json()) as {
-          success?: boolean;
-          latency?: number;
-          error?: string;
-        };
-
-        if (data.success) {
-          setNodeHealthMap((prev) => ({
-            ...prev,
-            [node.id]: {
-              status: 'ok',
-              latency:
-                typeof data.latency === 'number' &&
-                Number.isFinite(data.latency)
-                  ? data.latency
-                  : undefined,
-            },
-          }));
-          return;
-        }
-
-        setNodeHealthMap((prev) => ({
-          ...prev,
-          [node.id]: {
-            status: 'error',
-            error: data.error || '连接失败',
-          },
-        }));
-      } catch (err) {
-        setNodeHealthMap((prev) => ({
-          ...prev,
-          [node.id]: {
-            status: 'error',
-            error: (err as Error).message || '连接失败',
-          },
-        }));
-      }
-    });
-  };
-
-  const toggleSourceOrder = (source: string) => {
-    setDanmuSettings((prev) => {
-      const current = prev.sourceOrder
-        ? prev.sourceOrder
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [];
-      const idx = current.indexOf(source);
-      if (idx >= 0) {
-        current.splice(idx, 1);
-      } else {
-        current.push(source);
-      }
-      return { ...prev, sourceOrder: current.join(',') };
-    });
-  };
-
-  const togglePlatform = (platform: string) => {
-    setDanmuSettings((prev) => {
-      const current = prev.platform
-        ? prev.platform
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [];
-      const idx = current.indexOf(platform);
-      if (idx >= 0) {
-        current.splice(idx, 1);
-      } else {
-        current.push(platform);
-      }
-      return { ...prev, platform: current.join(',') };
-    });
-  };
-
-  const selectedSources = danmuSettings.sourceOrder
-    ? danmuSettings.sourceOrder
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  const selectedPlatforms = danmuSettings.platform
-    ? danmuSettings.platform
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  const customNodes = danmuSettings.customNodes;
-
-  const getNodeHealthView = (nodeId: string) => {
-    const health = nodeHealthMap[nodeId];
-    if (!health || health.status === 'idle') {
-      return (
-        <span className='inline-flex rounded-full bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 px-2 py-0.5 text-[11px]'>
-          未测试
-        </span>
-      );
-    }
-    if (health.status === 'testing') {
-      return (
-        <span className='inline-flex rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 text-[11px]'>
-          测试中...
-        </span>
-      );
-    }
-    if (health.status === 'ok') {
-      return (
-        <span className='inline-flex rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-[11px]'>
-          {typeof health.latency === 'number' ? `${health.latency}ms` : '可用'}
-        </span>
-      );
-    }
-    return (
-      <span
-        className='inline-flex rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-0.5 text-[11px]'
-        title={health.error || '连接失败'}
-      >
-        不可用
-      </span>
-    );
-  };
-
-  return (
-    <div className='space-y-6'>
-      {/* 顶部状态提示 */}
-      <div
-        className={`rounded-lg border p-4 ${
-          danmuSettings.enabled
-            ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
-            : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
-        }`}
-      >
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-3'>
-            <div
-              className={`w-2.5 h-2.5 rounded-full ${
-                danmuSettings.enabled
-                  ? 'bg-emerald-500 animate-pulse'
-                  : 'bg-gray-400'
-              }`}
-            />
-            <div>
-              <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                {danmuSettings.enabled
-                  ? '自定义弹幕服务已启用'
-                  : '使用内置弹弹play弹幕服务'}
-              </p>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-0.5'>
-                {danmuSettings.enabled
-                  ? danmuSettings.serverUrl
-                    ? `服务器: ${getFullServerUrl()}`
-                    : '请配置弹幕服务器地址'
-                  : '当前使用 Docker 镜像内置的弹弹play API 提供弹幕'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() =>
-              setDanmuSettings((prev) => ({ ...prev, enabled: !prev.enabled }))
-            }
-            className={`relative inline-flex h-7 w-13 items-center rounded-full transition-colors ${
-              danmuSettings.enabled
-                ? buttonStyles.toggleOn
-                : buttonStyles.toggleOff
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full transition-transform ${
-                buttonStyles.toggleThumb
-              } ${
-                danmuSettings.enabled
-                  ? buttonStyles.toggleThumbOn
-                  : buttonStyles.toggleThumbOff
-              }`}
-            />
-          </button>
-        </div>
-      </div>
-
-      {/* 服务器配置区域 */}
-      {danmuSettings.enabled && (
-        <div className='space-y-6'>
-          {/* 自定义弹幕提示 */}
-          <div className='rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/15 p-4'>
-            <div className='flex items-start gap-2'>
-              <AlertTriangle className='w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
-              <div className='space-y-1'>
-                <p className='text-sm font-medium text-amber-900 dark:text-amber-200'>
-                  内置演示站仅供测试，极其不稳定，强烈建议用户自行部署。
-                </p>
-                <p className='text-xs text-amber-700 dark:text-amber-300 flex flex-wrap items-center gap-1.5'>
-                  自部署教程:
-                  <a
-                    href={DEPLOYMENT_GUIDE_URL}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='inline-flex items-center gap-1 font-medium underline hover:text-amber-900 dark:hover:text-amber-100'
-                  >
-                    huangxd-/danmu_api
-                    <ExternalLink className='w-3 h-3' />
-                  </a>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 服务器地址 & Token */}
-          <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-            <div className='p-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50'>
-              <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
-                <span className='w-1 h-4 bg-blue-500 rounded-full'></span>
-                服务器连接
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                配置 LogVar 弹幕 API 服务器地址和访问令牌
-              </p>
-            </div>
-            <div className='p-4 space-y-4'>
-              {/* 服务器地址 */}
-              <div>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                  服务器地址
-                </label>
-                <div className='flex gap-2'>
-                  <input
-                    type='text'
-                    value={danmuSettings.serverUrl}
-                    onChange={(e) =>
-                      setDanmuSettings((prev) => ({
-                        ...prev,
-                        serverUrl: e.target.value,
-                      }))
-                    }
-                    placeholder='如 http://192.168.1.7:9321 或 https://your-domain.com'
-                    className='flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder-gray-400 dark:placeholder-gray-500'
-                  />
-                  <button
-                    onClick={handleTest}
-                    disabled={
-                      isLoading('testDanmuServer') || !danmuSettings.serverUrl
-                    }
-                    className={`shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 ${
-                      isLoading('testDanmuServer') || !danmuSettings.serverUrl
-                        ? buttonStyles.disabled
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-md'
-                    }`}
-                  >
-                    {isLoading('testDanmuServer') ? (
-                      <svg
-                        className='w-4 h-4 animate-spin'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                      >
-                        <circle
-                          className='opacity-25'
-                          cx='12'
-                          cy='12'
-                          r='10'
-                          stroke='currentColor'
-                          strokeWidth='4'
-                        />
-                        <path
-                          className='opacity-75'
-                          fill='currentColor'
-                          d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z'
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className='w-4 h-4'
-                        fill='none'
-                        stroke='currentColor'
-                        viewBox='0 0 24 24'
-                      >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth='2'
-                          d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
-                        />
-                      </svg>
-                    )}
-                    {isLoading('testDanmuServer') ? '测试中...' : '连通测试'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Token */}
-              <div>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                  API Token
-                  <span className='text-xs text-gray-400 dark:text-gray-500 font-normal ml-2'>
-                    官方稳定节点默认 decotv，留空则不携带 token
-                  </span>
-                </label>
-                <input
-                  type='text'
-                  value={danmuSettings.token}
-                  onChange={(e) =>
-                    setDanmuSettings((prev) => ({
-                      ...prev,
-                      token: e.target.value,
-                    }))
-                  }
-                  placeholder='decotv'
-                  className='w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono placeholder-gray-400 dark:placeholder-gray-500'
-                />
-              </div>
-
-              {/* 拼接后完整地址显示 */}
-              {danmuSettings.serverUrl && (
-                <div className='bg-gray-50 dark:bg-gray-900/30 rounded-lg p-3 border border-gray-100 dark:border-gray-700/50'>
-                  <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
-                    完整 API 端点
-                  </p>
-                  <p className='text-sm font-mono text-gray-700 dark:text-gray-300 break-all'>
-                    {getFullServerUrl()}
-                  </p>
-                </div>
-              )}
-
-              {/* 连通测试结果 */}
-              {testResult && (
-                <div
-                  className={`rounded-lg border p-3 ${
-                    testResult.success
-                      ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
-                      : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
-                  }`}
-                >
-                  <div className='flex items-start gap-2'>
-                    {testResult.success ? (
-                      <CheckCircle className='w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5' />
-                    ) : (
-                      <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5' />
-                    )}
-                    <div className='text-sm'>
-                      <p
-                        className={`font-medium ${testResult.success ? 'text-emerald-800 dark:text-emerald-300' : 'text-red-800 dark:text-red-300'}`}
-                      >
-                        {testResult.success ? '服务器连接成功' : '连接失败'}
-                      </p>
-                      {testResult.success && (
-                        <div className='mt-1 space-y-0.5 text-emerald-700 dark:text-emerald-400'>
-                          <p>延迟: {testResult.latency}ms</p>
-                          <p>
-                            搜索接口:
-                            {testResult.searchAvailable
-                              ? ` 可用（测试返回 ${testResult.searchResultCount} 条结果）`
-                              : ' 不可用'}
-                          </p>
-                        </div>
-                      )}
-                      {testResult.error && (
-                        <p className='mt-1 text-red-600 dark:text-red-400'>
-                          {testResult.error}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 推荐节点快速选择 */}
-          <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-            <div className='p-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50'>
-              <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
-                <span className='w-1 h-4 bg-purple-500 rounded-full'></span>
-                推荐节点（含稳定源）
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                已内置官方推荐稳定节点；历史演示站通常不稳定，建议优先使用自建服务。
-              </p>
-            </div>
-            <div className='p-4'>
-              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2'>
-                {DEMO_DANMU_SERVERS.map((server) => {
-                  const isSelected = danmuSettings.serverUrl === server.url;
-                  return (
-                    <button
-                      key={server.url}
-                      onClick={() => handleSelectDemoServer(server)}
-                      className={`text-left p-3 rounded-lg border-2 transition-all ${
-                        isSelected
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 bg-white dark:bg-gray-800'
-                      }`}
-                    >
-                      <p
-                        className={`text-sm font-medium ${
-                          isSelected
-                            ? 'text-purple-700 dark:text-purple-300'
-                            : 'text-gray-800 dark:text-gray-200'
-                        }`}
-                      >
-                        {server.name}
-                      </p>
-                      {server.badge && (
-                        <div className='mt-1'>
-                          <span className='inline-flex rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 text-[11px] font-medium'>
-                            {server.badge}
-                          </span>
-                        </div>
-                      )}
-                      <p className='text-xs font-mono text-gray-500 dark:text-gray-400 mt-0.5 truncate'>
-                        {server.url}
-                      </p>
-                      {server.token && (
-                        <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                          Token:{' '}
-                          <span className='font-mono'>{server.token}</span>
-                        </p>
-                      )}
-                      {isSelected && (
-                        <div className='flex items-center gap-1 mt-1'>
-                          <Check className='w-3 h-3 text-purple-500' />
-                          <span className='text-xs text-purple-600 dark:text-purple-400'>
-                            已选择
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-            <div className='p-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50 flex items-center justify-between gap-3'>
-              <div>
-                <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
-                  <span className='w-1 h-4 bg-emerald-500 rounded-full'></span>
-                  自定义节点库
-                </h4>
-                <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                  管理多个弹幕节点，支持添加、编辑、删除、延迟测试和一键应用
-                </p>
-              </div>
-              <button
-                type='button'
-                onClick={openAddNodeModal}
-                className={buttonStyles.primarySmall}
-              >
-                添加节点
-              </button>
-            </div>
-            <div className='p-4'>
-              {customNodes.length === 0 ? (
-                <div className='rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-6 text-center text-sm text-gray-500 dark:text-gray-400'>
-                  暂无自定义节点，点击右上角“添加节点”
-                </div>
-              ) : (
-                <div className='space-y-2'>
-                  {customNodes.map((node) => {
-                    const selected = isNodeSelected(node);
-                    const testLoadingKey = `testDanmuNode_${node.id}`;
-                    const applyLoadingKey = `applyDanmuNode_${node.id}`;
-                    return (
-                      <div
-                        key={node.id}
-                        className={`rounded-lg border p-3 transition-all ${
-                          selected
-                            ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50/60 dark:bg-emerald-900/20'
-                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/20'
-                        }`}
-                      >
-                        <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-                          <div className='min-w-0 flex-1'>
-                            <div className='flex items-center gap-2'>
-                              <p className='text-sm font-medium text-gray-800 dark:text-gray-100 truncate'>
-                                {node.name}
-                              </p>
-                              {selected && (
-                                <span className='inline-flex rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-[11px]'>
-                                  当前使用
-                                </span>
-                              )}
-                            </div>
-                            <p className='mt-1 text-xs font-mono text-gray-500 dark:text-gray-400 break-all'>
-                              {node.url}
-                            </p>
-                            {node.token && (
-                              <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-                                Token:{' '}
-                                <span className='font-mono'>{node.token}</span>
-                              </p>
-                            )}
-                          </div>
-                          <div className='flex flex-wrap items-center gap-2'>
-                            {getNodeHealthView(node.id)}
-                            <button
-                              type='button'
-                              onClick={() => handleTestNode(node)}
-                              disabled={isLoading(testLoadingKey)}
-                              className={`px-2 py-1 text-xs rounded-md ${
-                                isLoading(testLoadingKey)
-                                  ? buttonStyles.disabledSmall
-                                  : buttonStyles.secondarySmall
-                              }`}
-                            >
-                              {isLoading(testLoadingKey)
-                                ? '测试中...'
-                                : '测试延迟'}
-                            </button>
-                            <button
-                              type='button'
-                              onClick={() => handleApplyNode(node)}
-                              disabled={isLoading(applyLoadingKey)}
-                              className={`px-2 py-1 text-xs rounded-md ${
-                                isLoading(applyLoadingKey)
-                                  ? buttonStyles.disabledSmall
-                                  : buttonStyles.successSmall
-                              }`}
-                            >
-                              {isLoading(applyLoadingKey)
-                                ? '应用中...'
-                                : '使用此节点'}
-                            </button>
-                            <button
-                              type='button'
-                              onClick={() => openEditNodeModal(node)}
-                              className={buttonStyles.primarySmall}
-                            >
-                              编辑
-                            </button>
-                            <button
-                              type='button'
-                              onClick={() => handleDeleteNode(node)}
-                              className={buttonStyles.dangerSmall}
-                            >
-                              删除
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 弹幕来源平台优先级 */}
-          <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-            <div className='p-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50'>
-              <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
-                <span className='w-1 h-4 bg-amber-500 rounded-full'></span>
-                弹幕来源平台优先级
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                选择并排列弹幕优先匹配的视频平台，留空则自动匹配
-              </p>
-            </div>
-            <div className='p-4'>
-              <div className='flex flex-wrap gap-2'>
-                {PLATFORM_OPTIONS.map((opt) => {
-                  const isActive = selectedPlatforms.includes(opt.value);
-                  const order = selectedPlatforms.indexOf(opt.value);
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => togglePlatform(opt.value)}
-                      className={`relative inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        isActive
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 ring-2 ring-amber-300 dark:ring-amber-700'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700/40 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {isActive && (
-                        <span className='mr-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold'>
-                          {order + 1}
-                        </span>
-                      )}
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedPlatforms.length > 0 && (
-                <p className='text-xs text-gray-500 dark:text-gray-400 mt-2'>
-                  当前优先级: {selectedPlatforms.join(' > ')}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* 采集源配置 */}
-          <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-            <div className='p-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50'>
-              <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
-                <span className='w-1 h-4 bg-cyan-500 rounded-full'></span>
-                采集源排序
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                选择启用的采集源并按优先级排列，未选择则使用服务器默认配置
-              </p>
-            </div>
-            <div className='p-4'>
-              <div className='flex flex-wrap gap-2'>
-                {SOURCE_OPTIONS.map((opt) => {
-                  const isActive = selectedSources.includes(opt.value);
-                  const order = selectedSources.indexOf(opt.value);
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => toggleSourceOrder(opt.value)}
-                      className={`relative inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        isActive
-                          ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-200 ring-2 ring-cyan-300 dark:ring-cyan-700'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700/40 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {isActive && (
-                        <span className='mr-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-cyan-500 text-white text-[10px] font-bold'>
-                          {order + 1}
-                        </span>
-                      )}
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedSources.length > 0 && (
-                <p className='text-xs text-gray-500 dark:text-gray-400 mt-2'>
-                  当前排序: {selectedSources.join(' > ')}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* 高级配置折叠区 */}
-          <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className='w-full p-4 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors'
-            >
-              <div className='flex items-center gap-2'>
-                <span className='w-1 h-4 bg-gray-400 rounded-full'></span>
-                <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
-                  高级配置
-                </h4>
-                <span className='text-xs text-gray-400 dark:text-gray-500'>
-                  弹幕格式、颜色转换、数量限制、屏蔽词等
-                </span>
-              </div>
-              <div className='text-gray-500 dark:text-gray-400'>
-                {showAdvanced ? (
-                  <ChevronUp size={16} />
-                ) : (
-                  <ChevronDown size={16} />
-                )}
-              </div>
-            </button>
-
-            {showAdvanced && (
-              <div className='p-4 space-y-4 border-t border-gray-100 dark:border-gray-700/50'>
-                {/* 弹幕输出格式 */}
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                    弹幕输出格式
-                  </label>
-                  <div className='flex gap-3'>
-                    {[
-                      { value: 'json', label: 'JSON' },
-                      { value: 'xml', label: 'XML (Bilibili 标准)' },
-                    ].map((fmt) => (
-                      <label
-                        key={fmt.value}
-                        className={`cursor-pointer flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
-                          danmuSettings.danmuOutputFormat === fmt.value
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-blue-200'
-                        }`}
-                      >
-                        <input
-                          type='radio'
-                          name='danmuOutputFormat'
-                          value={fmt.value}
-                          checked={
-                            danmuSettings.danmuOutputFormat === fmt.value
-                          }
-                          onChange={(e) =>
-                            setDanmuSettings((prev) => ({
-                              ...prev,
-                              danmuOutputFormat: e.target.value as
-                                | 'json'
-                                | 'xml',
-                            }))
-                          }
-                          className='sr-only'
-                        />
-                        <span className='text-sm font-medium'>{fmt.label}</span>
-                        {danmuSettings.danmuOutputFormat === fmt.value && (
-                          <Check className='w-4 h-4 text-blue-500' />
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 弹幕颜色转换 */}
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                    弹幕颜色转换
-                  </label>
-                  <div className='flex flex-wrap gap-2'>
-                    {[
-                      { value: 'default', label: '不转换' },
-                      { value: 'white', label: '全部转白色' },
-                      { value: 'color', label: '白色转随机彩色' },
-                    ].map((opt) => (
-                      <label
-                        key={opt.value}
-                        className={`cursor-pointer px-3 py-1.5 rounded-lg border-2 text-sm transition-all ${
-                          danmuSettings.convertColor === opt.value
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-blue-200'
-                        }`}
-                      >
-                        <input
-                          type='radio'
-                          name='convertColor'
-                          value={opt.value}
-                          checked={danmuSettings.convertColor === opt.value}
-                          onChange={(e) =>
-                            setDanmuSettings((prev) => ({
-                              ...prev,
-                              convertColor: e.target.value as
-                                | 'default'
-                                | 'white'
-                                | 'color',
-                            }))
-                          }
-                          className='sr-only'
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 简繁转换 */}
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                    弹幕简繁体转换
-                  </label>
-                  <div className='flex flex-wrap gap-2'>
-                    {[
-                      { value: 'default', label: '不转换' },
-                      { value: 'simplified', label: '繁体转简体' },
-                      { value: 'traditional', label: '简体转繁体' },
-                    ].map((opt) => (
-                      <label
-                        key={opt.value}
-                        className={`cursor-pointer px-3 py-1.5 rounded-lg border-2 text-sm transition-all ${
-                          danmuSettings.simplifiedTraditional === opt.value
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-blue-200'
-                        }`}
-                      >
-                        <input
-                          type='radio'
-                          name='simplifiedTraditional'
-                          value={opt.value}
-                          checked={
-                            danmuSettings.simplifiedTraditional === opt.value
-                          }
-                          onChange={(e) =>
-                            setDanmuSettings((prev) => ({
-                              ...prev,
-                              simplifiedTraditional: e.target.value as
-                                | 'default'
-                                | 'simplified'
-                                | 'traditional',
-                            }))
-                          }
-                          className='sr-only'
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 顶部/底部弹幕转浮动 */}
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                      顶部/底部弹幕转浮动
-                    </p>
-                    <p className='text-xs text-gray-500 dark:text-gray-400'>
-                      部分播放器不支持顶部/底部弹幕时启用
-                    </p>
-                  </div>
-                  <button
-                    onClick={() =>
-                      setDanmuSettings((prev) => ({
-                        ...prev,
-                        convertTopBottomToScroll:
-                          !prev.convertTopBottomToScroll,
-                      }))
-                    }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      danmuSettings.convertTopBottomToScroll
-                        ? buttonStyles.toggleOn
-                        : buttonStyles.toggleOff
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-                        buttonStyles.toggleThumb
-                      } ${
-                        danmuSettings.convertTopBottomToScroll
-                          ? 'translate-x-6'
-                          : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* 弹幕数量限制 */}
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    弹幕数量限制
-                    <span className='text-xs text-gray-400 dark:text-gray-500 font-normal ml-2'>
-                      单位: 千条 (0 = 不限制)
-                    </span>
-                  </label>
-                  <input
-                    type='number'
-                    min={0}
-                    max={100}
-                    value={danmuSettings.danmuLimit}
-                    onChange={(e) =>
-                      setDanmuSettings((prev) => ({
-                        ...prev,
-                        danmuLimit: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                    className='w-32 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all'
-                  />
-                </div>
-
-                {/* 源合并配置 */}
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    源合并配置
-                    <span className='text-xs text-gray-400 dark:text-gray-500 font-normal ml-2'>
-                      格式: 源1&源2,源3&源4 （用 & 合并，用 , 分组）
-                    </span>
-                  </label>
-                  <input
-                    type='text'
-                    value={danmuSettings.mergeSourcePairs}
-                    onChange={(e) =>
-                      setDanmuSettings((prev) => ({
-                        ...prev,
-                        mergeSourcePairs: e.target.value,
-                      }))
-                    }
-                    placeholder='如 imgo&iqiyi,dandan&bahamut&animeko'
-                    className='w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono placeholder-gray-400 dark:placeholder-gray-500'
-                  />
-                </div>
-
-                {/* B站 Cookie */}
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    哔哩哔哩 Cookie
-                    <span className='text-xs text-gray-400 dark:text-gray-500 font-normal ml-2'>
-                      填入后可获取完整弹幕和港澳台内容
-                    </span>
-                  </label>
-                  <textarea
-                    value={danmuSettings.bilibiliCookie}
-                    onChange={(e) =>
-                      setDanmuSettings((prev) => ({
-                        ...prev,
-                        bilibiliCookie: e.target.value,
-                      }))
-                    }
-                    placeholder='SESSDATA=xxx; bili_jct=xxx'
-                    rows={2}
-                    className='w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono placeholder-gray-400 dark:placeholder-gray-500 resize-none'
-                  />
-                </div>
-
-                {/* 弹幕屏蔽词 */}
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    弹幕屏蔽词
-                    <span className='text-xs text-gray-400 dark:text-gray-500 font-normal ml-2'>
-                      支持正则表达式，用逗号分隔
-                    </span>
-                  </label>
-                  <textarea
-                    value={danmuSettings.blockedWords}
-                    onChange={(e) =>
-                      setDanmuSettings((prev) => ({
-                        ...prev,
-                        blockedWords: e.target.value,
-                      }))
-                    }
-                    placeholder='/.{20,}/,/签到|打卡|前排/'
-                    rows={3}
-                    className='w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono placeholder-gray-400 dark:placeholder-gray-500 resize-none'
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 保存按钮 */}
-          <div className='flex items-center justify-end gap-3 pt-2'>
-            <button
-              onClick={handleSave}
-              disabled={isLoading('saveDanmuConfig')}
-              className={`px-6 py-2.5 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${
-                isLoading('saveDanmuConfig')
-                  ? buttonStyles.disabled
-                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
-              }`}
-            >
-              {isLoading('saveDanmuConfig') ? (
-                <svg
-                  className='w-4 h-4 animate-spin'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                >
-                  <circle
-                    className='opacity-25'
-                    cx='12'
-                    cy='12'
-                    r='10'
-                    stroke='currentColor'
-                    strokeWidth='4'
-                  />
-                  <path
-                    className='opacity-75'
-                    fill='currentColor'
-                    d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z'
-                  />
-                </svg>
-              ) : (
-                <Check className='w-4 h-4' />
-              )}
-              {isLoading('saveDanmuConfig') ? '保存中...' : '保存配置'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 保存按钮 - 当弹幕服务关闭时也需要保存 */}
-      {!danmuSettings.enabled && (
-        <div className='flex items-center justify-end gap-3 pt-2'>
-          <button
-            onClick={handleSave}
-            disabled={isLoading('saveDanmuConfig')}
-            className={`px-6 py-2.5 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${
-              isLoading('saveDanmuConfig')
-                ? buttonStyles.disabled
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
-            }`}
-          >
-            {isLoading('saveDanmuConfig') ? (
-              <svg
-                className='w-4 h-4 animate-spin'
-                viewBox='0 0 24 24'
-                fill='none'
-              >
-                <circle
-                  className='opacity-25'
-                  cx='12'
-                  cy='12'
-                  r='10'
-                  stroke='currentColor'
-                  strokeWidth='4'
-                />
-                <path
-                  className='opacity-75'
-                  fill='currentColor'
-                  d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z'
-                />
-              </svg>
-            ) : (
-              <Check className='w-4 h-4' />
-            )}
-            {isLoading('saveDanmuConfig') ? '保存中...' : '保存配置'}
-          </button>
-        </div>
-      )}
-
-      {isNodeModalOpen && (
-        <div
-          className='fixed inset-0 z-1002 flex items-center justify-center bg-black/60 p-4'
-          onClick={closeNodeModal}
-        >
-          <div
-            className='w-full max-w-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl'
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className='flex items-center justify-between border-b border-gray-100 dark:border-gray-700 px-5 py-4'>
-              <h5 className='text-base font-semibold text-gray-900 dark:text-gray-100'>
-                {editingNodeId ? '编辑自定义节点' : '添加自定义节点'}
-              </h5>
-              <button
-                type='button'
-                onClick={closeNodeModal}
-                className='text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-              >
-                关闭
-              </button>
-            </div>
-            <div className='space-y-4 px-5 py-4'>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                  节点名称
-                </label>
-                <input
-                  type='text'
-                  value={nodeForm.name}
-                  onChange={(e) =>
-                    setNodeForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder='例如：家庭节点 / 海外节点'
-                  className='w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'
-                />
-              </div>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                  服务地址
-                </label>
-                <input
-                  type='text'
-                  value={nodeForm.url}
-                  onChange={(e) =>
-                    setNodeForm((prev) => ({ ...prev, url: e.target.value }))
-                  }
-                  placeholder='https://danmu.example.com'
-                  className='w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'
-                />
-              </div>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                  API Token
-                </label>
-                <input
-                  type='text'
-                  value={nodeForm.token}
-                  onChange={(e) =>
-                    setNodeForm((prev) => ({ ...prev, token: e.target.value }))
-                  }
-                  placeholder='可留空'
-                  className='w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500'
-                />
-              </div>
-            </div>
-            <div className='flex items-center justify-end gap-2 border-t border-gray-100 dark:border-gray-700 px-5 py-4'>
-              <button
-                type='button'
-                onClick={closeNodeModal}
-                className={buttonStyles.secondarySmall}
-              >
-                取消
-              </button>
-              <button
-                type='button'
-                onClick={handleSubmitNode}
-                className={buttonStyles.primarySmall}
-              >
-                {editingNodeId ? '保存修改' : '添加节点'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <AlertModal
-        isOpen={alertModal.isOpen}
-        onClose={hideAlert}
-        type={alertModal.type}
-        title={alertModal.title}
-        message={alertModal.message}
-        timer={alertModal.timer}
-        showConfirm={alertModal.showConfirm}
-      />
-    </div>
-  );
-};
-
-interface PanSouConfigProps {
-  config: AdminConfig | null;
-  refreshConfig: () => Promise<void>;
-}
-
-interface PanSouSettingsState {
-  serverUrl: string;
-  token: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
-const PanSouConfigComponent = ({
-  config,
-  refreshConfig,
-}: PanSouConfigProps) => {
-  const { alertModal, showAlert, hideAlert } = useAlertModal();
-  const { isLoading, withLoading } = useLoadingState();
-
-  const normalizeServerUrl = useCallback((value: string) => {
-    return value.trim().replace(/\/+$/, '');
-  }, []);
-
-  const [settings, setSettings] = useState<PanSouSettingsState>({
-    serverUrl: normalizeServerUrl(DEFAULT_PANSOU_SERVER_URL),
-    token: '',
-  });
-  const [testResult, setTestResult] = useState<{
-    success?: boolean;
-    latency?: number;
-    healthStatus?: number;
-    searchStatus?: number;
-    searchResultCount?: number;
-    error?: string;
-  } | null>(null);
-
-  const activePanSouNode = useMemo(() => {
-    const nodes = config?.PanSouConfig?.nodes || [];
-    if (!Array.isArray(nodes) || nodes.length === 0) {
-      return null;
-    }
-    return (
-      nodes.find((node) => node.id === config?.PanSouConfig?.activeNodeId) ||
-      nodes[0]
-    );
-  }, [config]);
-
-  useEffect(() => {
-    setSettings({
-      serverUrl:
-        normalizeServerUrl(activePanSouNode?.serverUrl || '') ||
-        normalizeServerUrl(DEFAULT_PANSOU_SERVER_URL),
-      token: activePanSouNode?.token || '',
-    });
-  }, [activePanSouNode, normalizeServerUrl]);
-
-  const handleSave = async () => {
-    const serverUrl = normalizeServerUrl(settings.serverUrl);
-    if (!serverUrl) {
-      showError('请先填写 PanSou 服务地址', showAlert);
-      return;
-    }
-
-    await withLoading('savePanSouConfig', async () => {
-      try {
-        const response = await fetch('/api/admin/pansou', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            serverUrl,
-            token: settings.token.trim(),
-          }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.error || '保存失败');
-        }
-        await refreshConfig();
-        showSuccess('PanSou 配置保存成功', showAlert);
-      } catch (error) {
-        showError(
-          `保存 PanSou 配置失败: ${error instanceof Error ? error.message : '未知错误'}`,
-          showAlert,
-        );
-      }
-    });
-  };
-
-  const handleTest = async () => {
-    const serverUrl = normalizeServerUrl(settings.serverUrl);
-    if (!serverUrl) {
-      showError('请先填写 PanSou 服务地址', showAlert);
-      return;
-    }
-
-    setTestResult(null);
-    await withLoading('testPanSouServer', async () => {
-      try {
-        const response = await fetch('/api/admin/pansou/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            serverUrl,
-            token: settings.token.trim(),
-          }),
-        });
-        const data = (await response.json().catch(() => ({}))) as {
-          success?: boolean;
-          latency?: number;
-          healthStatus?: number;
-          searchStatus?: number;
-          searchResultCount?: number;
-          error?: string;
-        };
-        setTestResult(data);
-      } catch (error) {
-        setTestResult({
-          success: false,
-          error: error instanceof Error ? error.message : '网络请求失败',
-        });
-      }
-    });
-  };
-
-  const handleUseDemoServer = () => {
-    setSettings((prev) => ({
-      ...prev,
-      serverUrl: normalizeServerUrl(DEFAULT_PANSOU_SERVER_URL),
-    }));
-    setTestResult(null);
-  };
-
-  const currentServerUrl = normalizeServerUrl(settings.serverUrl);
-  const isDemoSelected =
-    currentServerUrl === normalizeServerUrl(DEFAULT_PANSOU_SERVER_URL);
-
-  return (
-    <div className='space-y-6'>
-      <div className='rounded-lg border border-cyan-200 dark:border-cyan-900/60 bg-cyan-50 dark:bg-cyan-900/10 p-4'>
-        <div className='flex items-center justify-between gap-3'>
-          <div className='space-y-1'>
-            <p className='text-sm font-semibold text-cyan-900 dark:text-cyan-200'>
-              当前 PanSou 节点
-            </p>
-            <p className='text-xs text-cyan-700 dark:text-cyan-300 break-all'>
-              {currentServerUrl || '未配置'}
-            </p>
-            <p className='text-xs text-cyan-700/90 dark:text-cyan-300/90'>
-              支持对接第三方 PanSou 服务
-            </p>
-          </div>
-          <button
-            type='button'
-            onClick={handleUseDemoServer}
-            className={buttonStyles.secondarySmall}
-          >
-            使用演示节点
-          </button>
-        </div>
-      </div>
-
-      <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-        <div className='p-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50'>
-          <h4 className='text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
-            <span className='w-1 h-4 bg-cyan-500 rounded-full'></span>
-            服务连接
-          </h4>
-          <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-            DecoTV 会将 /api/pansou/search 请求转发到此服务节点
-          </p>
-        </div>
-
-        <div className='p-4 space-y-4'>
-          <div>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-              服务地址（URL）
-            </label>
-            <div className='flex gap-2'>
-              <input
-                type='text'
-                value={settings.serverUrl}
-                onChange={(event) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    serverUrl: event.target.value,
-                  }))
-                }
-                placeholder='例如: https://pansou.example.com'
-                className='flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all placeholder-gray-400 dark:placeholder-gray-500'
-              />
-              <button
-                type='button'
-                onClick={handleTest}
-                disabled={isLoading('testPanSouServer') || !currentServerUrl}
-                className={`shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                  isLoading('testPanSouServer') || !currentServerUrl
-                    ? buttonStyles.disabled
-                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-md'
-                }`}
-              >
-                {isLoading('testPanSouServer') ? '测试中...' : '连通性测试'}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-              API Token / 鉴权密钥
-              <span className='text-xs text-gray-400 dark:text-gray-500 font-normal ml-2'>
-                选填
-              </span>
-            </label>
-            <input
-              type='text'
-              value={settings.token}
-              onChange={(event) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  token: event.target.value,
-                }))
-              }
-              placeholder='留空表示不携带 Authorization'
-              className='w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all font-mono placeholder-gray-400 dark:placeholder-gray-500'
-            />
-          </div>
-
-          {testResult && (
-            <div
-              className={`rounded-lg border p-3 ${
-                testResult.success
-                  ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
-              }`}
-            >
-              <p
-                className={`text-sm font-medium ${
-                  testResult.success
-                    ? 'text-emerald-800 dark:text-emerald-300'
-                    : 'text-red-800 dark:text-red-300'
-                }`}
-              >
-                {testResult.success ? '节点连接成功' : '节点连接失败'}
-              </p>
-              {testResult.success ? (
-                <div className='mt-1 text-xs text-emerald-700 dark:text-emerald-400 space-y-0.5'>
-                  <p>延迟: {testResult.latency}ms</p>
-                  <p>健康检查状态: {testResult.healthStatus}</p>
-                  <p>搜索接口状态: {testResult.searchStatus}</p>
-                  <p>测试返回结果数: {testResult.searchResultCount ?? 0}</p>
-                </div>
-              ) : (
-                <p className='mt-1 text-xs text-red-700 dark:text-red-400'>
-                  {testResult.error || '连接异常，请检查地址与鉴权配置'}
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className='rounded-lg border border-gray-100 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-900/30 p-3'>
-            <p className='text-xs text-gray-600 dark:text-gray-400'>
-              默认演示地址：{normalizeServerUrl(DEFAULT_PANSOU_SERVER_URL)}
-            </p>
-            {isDemoSelected && (
-              <p className='text-xs text-cyan-600 dark:text-cyan-400 mt-1'>
-                当前已选中演示节点
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className='flex justify-end'>
-        <button
-          type='button'
-          onClick={handleSave}
-          disabled={isLoading('savePanSouConfig')}
-          className={`px-4 py-2 rounded-lg transition-colors ${
-            isLoading('savePanSouConfig')
-              ? buttonStyles.disabled
-              : buttonStyles.success
-          }`}
-        >
-          {isLoading('savePanSouConfig') ? '保存中...' : '保存配置'}
-        </button>
-      </div>
-
-      <AlertModal
-        isOpen={alertModal.isOpen}
-        onClose={hideAlert}
-        type={alertModal.type}
-        title={alertModal.title}
-        message={alertModal.message}
-        timer={alertModal.timer}
-        showConfirm={alertModal.showConfirm}
-      />
-    </div>
-  );
-};
-
 function AdminPageClient() {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
@@ -8299,34 +5753,28 @@ function AdminPageClient() {
   const [role, setRole] = useState<'owner' | 'admin' | null>(null);
   const [storageMode, setStorageMode] = useState<'cloud' | 'local'>('cloud'); // 存储模式
   const [showResetConfigModal, setShowResetConfigModal] = useState(false);
-  const [expandedTabs, setExpandedTabs] = useState<{ [key: string]: boolean }>({
-    userConfig: false,
-    videoSource: false,
-    liveSource: false,
-    tvboxConfig: false,
-    siteConfig: false,
-    categoryConfig: false,
-    configFile: false,
-    danmuConfig: false,
-    pansouConfig: false,
-    dataMigration: false,
-  });
+  // 电视端左右结构：当前激活的配置分区（左侧 tab 决定右侧内容）
+  const [activeSection, setActiveSection] = useState('videoSource');
 
-  // TVBox 配置相关状态
-  const [tvboxFormat, setTvboxFormat] = useState<'json' | 'base64'>('json');
-  const [tvboxMode, setTvboxMode] = useState<
-    'standard' | 'safe' | 'yingshicang' | 'fast'
-  >('fast');
-  const [diagnosisResult, setDiagnosisResult] = useState<any>(null);
-  const [isDiagnosing, setIsDiagnosing] = useState(false);
-
-  // JAR 状态监控相关状态
-  const [jarStatus, setJarStatus] = useState<any>(null);
-  const [isRefreshingJar, setIsRefreshingJar] = useState(false);
-  const [isCheckingJar, setIsCheckingJar] = useState(false);
+  // 左侧子 tab 列表（按角色过滤：配置文件/数据迁移仅站长可见）
+  const sections = useMemo<ManageSubTab[]>(() => {
+    const list: ManageSubTab[] = [
+      { key: 'videoSource', label: '视频源配置', icon: Video },
+      { key: 'siteConfig', label: '站点配置', icon: Settings },
+      { key: 'userConfig', label: '用户配置', icon: Users },
+      { key: 'categoryConfig', label: '分类配置', icon: FolderOpen },
+    ];
+    if (role === 'owner') {
+      list.push(
+        { key: 'configFile', label: '配置文件', icon: FileText },
+        { key: 'dataMigration', label: '数据迁移', icon: Database },
+      );
+    }
+    return list;
+  }, [role]);
 
   // localStorage 键名常量
-  const LOCAL_CONFIG_KEY = 'decotv_admin_config';
+  const LOCAL_CONFIG_KEY = 'carecasttv_admin_config';
 
   // 从 localStorage 读取配置
   const loadLocalConfig = useCallback((): AdminConfig | null => {
@@ -8441,169 +5889,6 @@ function AdminPageClient() {
     fetchConfig(true);
   }, [fetchConfig]);
 
-  // 切换标签展开状态
-  const toggleTab = (tabKey: string) => {
-    setExpandedTabs((prev) => ({
-      ...prev,
-      [tabKey]: !prev[tabKey],
-    }));
-  };
-
-  // TVBox 配置相关函数
-  const getTvboxConfigUrl = () => {
-    // 优先使用显式配置的公网基址，避免出现 0.0.0.0、localhost 等不可用地址
-    const envBase = (process.env.NEXT_PUBLIC_SITE_BASE || '')
-      .trim()
-      .replace(/\/$/, '');
-    let baseUrl = envBase;
-    if (!baseUrl) {
-      if (typeof window !== 'undefined') {
-        baseUrl = window.location.origin;
-      } else {
-        baseUrl = '';
-      }
-    }
-    // 始终附带 format 参数，确保 JSON 时为 ?format=json
-    const modeParam = tvboxMode !== 'standard' ? `&mode=${tvboxMode}` : '';
-    return `${baseUrl}/api/tvbox/config?format=${tvboxFormat}${modeParam}`;
-  };
-
-  const handleTvboxCopy = async () => {
-    try {
-      const url = getTvboxConfigUrl();
-      await navigator.clipboard.writeText(url);
-      showSuccess('复制成功！订阅地址已复制到剪贴板', showAlert);
-    } catch {
-      showError('复制失败，请手动复制地址', showAlert);
-    }
-  };
-
-  // 连通性体检功能
-  const handleDiagnosis = async () => {
-    setIsDiagnosing(true);
-    try {
-      const response = await fetch('/api/tvbox/diagnose');
-      const result = await response.json();
-      setDiagnosisResult(result);
-
-      if (result.pass) {
-        showAlert({
-          type: 'success',
-          title: '🟢 配置健康检查通过',
-          message: '配置可正常访问，JSON格式有效，连通性良好',
-          timer: 3000,
-        });
-      } else {
-        const issues = result.issues.join('；');
-        showAlert({
-          type: 'error',
-          title: '🔴 配置健康检查失败',
-          message: `发现问题：${issues}`,
-        });
-      }
-    } catch (error) {
-      showAlert({
-        type: 'error',
-        title: '体检失败',
-        message: error instanceof Error ? error.message : '网络错误',
-      });
-    } finally {
-      setIsDiagnosing(false);
-    }
-  };
-
-  const handleTvboxTest = async () => {
-    try {
-      const url = getTvboxConfigUrl();
-      const response = await fetch(url);
-      if (response.ok) {
-        showSuccess('配置测试成功！订阅地址可正常访问', showAlert);
-      } else {
-        throw new Error(`HTTP ${response.status}`);
-      }
-    } catch (err) {
-      showError(
-        `配置测试失败: ${err instanceof Error ? err.message : '网络错误'}`,
-        showAlert,
-      );
-    }
-  };
-
-  // JAR 状态相关函数
-  const handleCheckJarStatus = async () => {
-    setIsCheckingJar(true);
-    try {
-      const response = await fetch('/api/tvbox/spider-status');
-      const result = await response.json();
-      setJarStatus(result);
-
-      if (result.success && result.fresh_status.success) {
-        showAlert({
-          type: 'success',
-          title: '🟢 JAR 状态正常',
-          message: `源: ${result.fresh_status.source
-            .split('/')
-            .pop()}, 大小: ${Math.round(result.fresh_status.size / 1024)}KB`,
-          timer: 3000,
-        });
-      } else {
-        showAlert({
-          type: 'warning',
-          title: '⚠️ JAR 状态异常',
-          message: result.fresh_status.is_fallback
-            ? '正在使用内置备用JAR'
-            : '远程JAR获取失败',
-        });
-      }
-    } catch (error) {
-      showAlert({
-        type: 'error',
-        title: 'JAR 状态检查失败',
-        message: error instanceof Error ? error.message : '网络错误',
-      });
-    } finally {
-      setIsCheckingJar(false);
-    }
-  };
-
-  const handleRefreshJar = async () => {
-    setIsRefreshingJar(true);
-    try {
-      const response = await fetch('/api/tvbox/spider-status', {
-        method: 'POST',
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        setJarStatus(result);
-        if (result.jar_status.success) {
-          showAlert({
-            type: 'success',
-            title: '🎉 JAR 刷新成功',
-            message: `已获取新的JAR文件，尝试了 ${result.jar_status.tried_sources} 个源`,
-            timer: 3000,
-          });
-        } else {
-          showAlert({
-            type: 'warning',
-            title: '⚠️ JAR 刷新完成',
-            message: '远程源暂时不可用，正在使用内置备用JAR',
-          });
-        }
-      } else {
-        throw new Error(result.error || 'JAR 刷新失败');
-      }
-    } catch (error) {
-      showAlert({
-        type: 'error',
-        title: 'JAR 刷新失败',
-        message: error instanceof Error ? error.message : '网络错误',
-      });
-    } finally {
-      setIsRefreshingJar(false);
-    }
-  };
-
   // 新增: 重置配置处理函数
   const handleResetConfig = () => {
     setShowResetConfigModal(true);
@@ -8695,6 +5980,12 @@ function AdminPageClient() {
     <PageLayout activePath='/admin'>
       <div className='px-2 sm:px-10 py-4 sm:py-8'>
         <div className='max-w-[95%] mx-auto'>
+          {/* 电视端左右结构：左侧 管理区主 tab + 本页子 tab，右侧内容 */}
+          <ManageLayout
+            subTabs={sections}
+            activeSubTab={activeSection}
+            onSubTabChange={setActiveSection}
+          >
           {/* 本地模式警告提示 */}
           {storageMode === 'local' && (
             <div className='mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800'>
@@ -8717,8 +6008,8 @@ function AdminPageClient() {
           )}
 
           {/* 标题 + 重置配置按钮 */}
-          <div className='flex items-center gap-2 mb-8'>
-            <h1 className='text-2xl font-bold text-gray-900 dark:text-gray-100'>
+          <div className='flex items-center gap-2 mb-6'>
+            <h1 className='text-2xl font-bold brand-gradient-text inline-block'>
               管理员设置
             </h1>
             {config && role === 'owner' && (
@@ -8731,681 +6022,45 @@ function AdminPageClient() {
             )}
           </div>
 
-          {/* 配置文件标签 - 仅站长可见 */}
-          {role === 'owner' && (
-            <CollapsibleTab
-              title='配置文件'
-              icon={
-                <FileText
-                  size={20}
-                  className='text-gray-600 dark:text-gray-400'
-                />
-              }
-              isExpanded={expandedTabs.configFile}
-              onToggle={() => toggleTab('configFile')}
-            >
-              <ConfigFileComponent
-                config={config}
-                refreshConfig={fetchConfig}
-                storageMode={storageMode}
-                updateConfig={updateConfig}
-              />
-            </CollapsibleTab>
-          )}
-
-          {/* 站点配置标签 */}
-          <CollapsibleTab
-            title='站点配置'
-            icon={
-              <Settings
-                size={20}
-                className='text-gray-600 dark:text-gray-400'
-              />
-            }
-            isExpanded={expandedTabs.siteConfig}
-            onToggle={() => toggleTab('siteConfig')}
-          >
-            <SiteConfigComponent config={config} refreshConfig={fetchConfig} />
-          </CollapsibleTab>
-
-          <div className='space-y-4'>
-            {/* 用户配置标签 */}
-            <CollapsibleTab
-              title='用户配置'
-              icon={
-                <Users size={20} className='text-gray-600 dark:text-gray-400' />
-              }
-              isExpanded={expandedTabs.userConfig}
-              onToggle={() => toggleTab('userConfig')}
-            >
-              <UserConfig
-                config={config}
-                role={role}
-                refreshConfig={fetchConfig}
-              />
-            </CollapsibleTab>
-
-            {/* 视频源配置标签 */}
-            <CollapsibleTab
-              title='视频源配置'
-              icon={
-                <Video size={20} className='text-gray-600 dark:text-gray-400' />
-              }
-              isExpanded={expandedTabs.videoSource}
-              onToggle={() => toggleTab('videoSource')}
-            >
+          {/* 右侧内容：仅渲染当前激活分区 */}
+          <div className='rounded-xl shadow-sm bg-white/80 backdrop-blur-md dark:bg-gray-800/50 dark:ring-1 dark:ring-gray-700 px-4 sm:px-6 py-5'>
+            {activeSection === 'videoSource' && (
               <VideoSourceConfig
                 config={config}
                 refreshConfig={fetchConfig}
                 storageMode={storageMode}
                 updateConfig={updateConfig}
               />
-            </CollapsibleTab>
-
-            {/* 直播源配置标签 */}
-            <CollapsibleTab
-              title='直播源配置'
-              icon={
-                <Tv size={20} className='text-gray-600 dark:text-gray-400' />
-              }
-              isExpanded={expandedTabs.liveSource}
-              onToggle={() => toggleTab('liveSource')}
-            >
-              <LiveSourceConfig
+            )}
+            {activeSection === 'siteConfig' && (
+              <SiteConfigComponent
+                config={config}
+                refreshConfig={fetchConfig}
+              />
+            )}
+            {activeSection === 'userConfig' && (
+              <UserConfig
+                config={config}
+                role={role}
+                refreshConfig={fetchConfig}
+              />
+            )}
+            {activeSection === 'categoryConfig' && (
+              <CategoryConfig config={config} refreshConfig={fetchConfig} />
+            )}
+            {activeSection === 'configFile' && role === 'owner' && (
+              <ConfigFileComponent
                 config={config}
                 refreshConfig={fetchConfig}
                 storageMode={storageMode}
                 updateConfig={updateConfig}
               />
-            </CollapsibleTab>
-
-            {/* TVbox 配置 */}
-            <CollapsibleTab
-              title='TVbox配置'
-              icon={
-                <Package
-                  size={20}
-                  className='text-gray-600 dark:text-gray-400'
-                />
-              }
-              isExpanded={expandedTabs.tvboxConfig}
-              onToggle={() => toggleTab('tvboxConfig')}
-            >
-              <div className='space-y-6 p-2 sm:p-4'>
-                {/* 顶部：订阅链接生成器 (核心功能) */}
-                <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
-                  <div className='p-5 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50'>
-                    <h3 className='text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2'>
-                      <span className='text-xl'>🔗</span> 订阅链接生成器
-                    </h3>
-                    <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
-                      支持标准 TVBox、猫影视、EasyBox 等主流播放器
-                    </p>
-                  </div>
-
-                  <div className='p-5 space-y-6'>
-                    {/* 链接输入框区域 */}
-                    <div className='flex flex-col sm:flex-row gap-3'>
-                      <div className='relative grow'>
-                        <input
-                          type='text'
-                          readOnly
-                          className='w-full pl-4 pr-10 py-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono text-sm'
-                          value={getTvboxConfigUrl()}
-                        />
-                        <div className='absolute right-3 top-1/2 -translate-y-1/2 text-gray-400'>
-                          <svg
-                            className='w-5 h-5'
-                            fill='none'
-                            stroke='currentColor'
-                            viewBox='0 0 24 24'
-                          >
-                            <path
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                              strokeWidth='2'
-                              d='M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'
-                            />
-                          </svg>
-                        </div>
-                      </div>
-                      <div className='flex gap-2 shrink-0'>
-                        <button
-                          onClick={handleTvboxCopy}
-                          className='flex-1 sm:flex-none px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-sm hover:shadow-md font-medium flex items-center justify-center gap-2'
-                        >
-                          <svg
-                            className='w-4 h-4'
-                            fill='none'
-                            stroke='currentColor'
-                            viewBox='0 0 24 24'
-                          >
-                            <path
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                              strokeWidth='2'
-                              d='M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3'
-                            />
-                          </svg>
-                          复制
-                        </button>
-                        <button
-                          onClick={handleTvboxTest}
-                          className='flex-1 sm:flex-none px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow-sm hover:shadow-md font-medium flex items-center justify-center gap-2'
-                        >
-                          <svg
-                            className='w-4 h-4'
-                            fill='none'
-                            stroke='currentColor'
-                            viewBox='0 0 24 24'
-                          >
-                            <path
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                              strokeWidth='2'
-                              d='M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z'
-                            />
-                            <path
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                              strokeWidth='2'
-                              d='M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-                            />
-                          </svg>
-                          测试
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
-                      {/* 左侧：格式选择 */}
-                      <div className='lg:col-span-4 space-y-3'>
-                        <label className='text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2'>
-                          <span className='w-1 h-4 bg-blue-500 rounded-full'></span>
-                          输出格式
-                        </label>
-                        <div className='grid grid-cols-2 gap-3'>
-                          {[
-                            { value: 'json', label: 'JSON', icon: '{}' },
-                            { value: 'base64', label: 'Base64', icon: 'B64' },
-                          ].map((fmt) => (
-                            <label
-                              key={fmt.value}
-                              className={`cursor-pointer relative flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-                                tvboxFormat === fmt.value
-                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                                  : 'border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                              }`}
-                            >
-                              <input
-                                type='radio'
-                                name='tvboxFormat'
-                                value={fmt.value}
-                                checked={tvboxFormat === fmt.value}
-                                onChange={(e) =>
-                                  setTvboxFormat(
-                                    e.target.value as 'json' | 'base64',
-                                  )
-                                }
-                                className='sr-only'
-                              />
-                              <span className='text-lg font-bold font-mono mb-1'>
-                                {fmt.icon}
-                              </span>
-                              <span className='text-xs font-medium'>
-                                {fmt.label}
-                              </span>
-                              {tvboxFormat === fmt.value && (
-                                <div className='absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full'></div>
-                              )}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 右侧：模式选择 */}
-                      <div className='lg:col-span-8 space-y-3'>
-                        <label className='text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2'>
-                          <span className='w-1 h-4 bg-purple-500 rounded-full'></span>
-                          配置模式
-                        </label>
-                        <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                          {[
-                            {
-                              id: 'standard',
-                              name: '标准模式',
-                              desc: '完整功能，兼容性好',
-                              icon: '📱',
-                            },
-                            {
-                              id: 'yingshicang',
-                              name: '影视仓优化',
-                              desc: '修复JAR兼容问题',
-                              icon: '🔥',
-                              highlight: true,
-                            },
-                            {
-                              id: 'fast',
-                              name: '快速切换',
-                              desc: '优化SSL与卡顿',
-                              icon: '⚡',
-                              highlight: true,
-                            },
-                            {
-                              id: 'safe',
-                              name: '兼容模式',
-                              desc: '仅基础字段，极简',
-                              icon: '🛡️',
-                            },
-                          ].map((mode) => (
-                            <label
-                              key={mode.id}
-                              className={`cursor-pointer relative flex items-start p-3 rounded-xl border transition-all ${
-                                tvboxMode === mode.id
-                                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 ring-1 ring-purple-500'
-                                  : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 bg-white dark:bg-gray-800'
-                              }`}
-                            >
-                              <input
-                                type='radio'
-                                name='tvboxMode'
-                                value={mode.id}
-                                checked={tvboxMode === mode.id}
-                                onChange={(e) =>
-                                  setTvboxMode(e.target.value as any)
-                                }
-                                className='sr-only'
-                              />
-                              <div className='text-2xl mr-3 mt-1'>
-                                {mode.icon}
-                              </div>
-                              <div className='flex-1 min-w-0'>
-                                <div
-                                  className={`text-sm font-semibold ${
-                                    tvboxMode === mode.id
-                                      ? 'text-purple-700 dark:text-purple-300'
-                                      : 'text-gray-900 dark:text-gray-100'
-                                  }`}
-                                >
-                                  {mode.name}
-                                </div>
-                                <div className='text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate'>
-                                  {mode.desc}
-                                </div>
-                              </div>
-                              {tvboxMode === mode.id && (
-                                <div className='absolute top-3 right-3 text-purple-500'>
-                                  <svg
-                                    className='w-5 h-5'
-                                    fill='currentColor'
-                                    viewBox='0 0 20 20'
-                                  >
-                                    <path
-                                      fillRule='evenodd'
-                                      d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z'
-                                      clipRule='evenodd'
-                                    />
-                                  </svg>
-                                </div>
-                              )}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 中部：成人内容过滤 (保持原有风格但微调) */}
-                <div className='bg-linear-to-br from-pink-50 to-rose-50 dark:from-pink-900/10 dark:to-rose-900/10 rounded-xl border border-pink-100 dark:border-pink-800/30 p-1'>
-                  <div className='bg-white/50 dark:bg-gray-800/50 rounded-lg p-4 backdrop-blur-sm'>
-                    <div className='flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4'>
-                      <div className='flex items-center gap-3'>
-                        <div className='w-10 h-10 rounded-full bg-linear-to-br from-pink-500 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-pink-500/30'>
-                          🔒
-                        </div>
-                        <div>
-                          <h4 className='text-sm font-bold text-gray-900 dark:text-gray-100'>
-                            成人内容过滤
-                          </h4>
-                          <p className='text-xs text-gray-500 dark:text-gray-400'>
-                            无需修改配置，通过 URL 参数灵活控制
-                          </p>
-                        </div>
-                      </div>
-                      <a
-                        href='https://github.com/Decohererk/DecoTV/blob/main/docs/%E6%88%90%E4%BA%BA%E5%86%85%E5%AE%B9%E8%BF%87%E6%BB%A4%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97.md'
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        className='text-xs text-pink-600 dark:text-pink-400 hover:underline flex items-center gap-1'
-                      >
-                        查看完整指南{' '}
-                        <svg
-                          className='w-3 h-3'
-                          fill='none'
-                          stroke='currentColor'
-                          viewBox='0 0 24 24'
-                        >
-                          <path
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                            strokeWidth='2'
-                            d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
-                          />
-                        </svg>
-                      </a>
-                    </div>
-
-                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                      <button
-                        onClick={() => {
-                          const baseUrl = getTvboxConfigUrl().split('?')[0];
-                          navigator.clipboard.writeText(baseUrl);
-                          showSuccess(
-                            '已复制家庭安全模式链接（默认过滤成人内容）',
-                            showAlert,
-                          );
-                        }}
-                        className='group flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-green-400 dark:hover:border-green-600 hover:shadow-sm transition-all'
-                      >
-                        <div className='flex items-center gap-3'>
-                          <span className='text-xl bg-green-100 dark:bg-green-900/30 p-1.5 rounded-md'>
-                            🏠
-                          </span>
-                          <div className='text-left'>
-                            <div className='text-sm font-semibold text-gray-800 dark:text-gray-200 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors'>
-                              家庭安全模式
-                            </div>
-                            <div className='text-xs text-gray-500 dark:text-gray-400'>
-                              过滤所有成人内容
-                            </div>
-                          </div>
-                        </div>
-                        <span className='text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-500'>
-                          默认
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          const baseUrl = getTvboxConfigUrl().split('?')[0];
-                          const fullUrl = `${baseUrl}?filter=off`;
-                          navigator.clipboard.writeText(fullUrl);
-                          showSuccess(
-                            '已复制完整内容模式链接（显示所有内容）',
-                            showAlert,
-                          );
-                        }}
-                        className='group flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-rose-400 dark:hover:border-rose-600 hover:shadow-sm transition-all'
-                      >
-                        <div className='flex items-center gap-3'>
-                          <span className='text-xl bg-rose-100 dark:bg-rose-900/30 p-1.5 rounded-md'>
-                            🔓
-                          </span>
-                          <div className='text-left'>
-                            <div className='text-sm font-semibold text-gray-800 dark:text-gray-200 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors'>
-                              完整内容模式
-                            </div>
-                            <div className='text-xs text-gray-500 dark:text-gray-400'>
-                              显示所有内容资源
-                            </div>
-                          </div>
-                        </div>
-                        <span className='text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-500'>
-                          ?filter=off
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 底部：诊断与工具箱 */}
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                  {/* 连通性体检 */}
-                  <div className='bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col'>
-                    <div className='flex items-center justify-between mb-4'>
-                      <h4 className='text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2'>
-                        🩺 连通性体检
-                      </h4>
-                      <button
-                        onClick={handleDiagnosis}
-                        disabled={isDiagnosing}
-                        className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-                          isDiagnosing
-                            ? 'bg-gray-200 text-gray-500'
-                            : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        {isDiagnosing ? '检测中...' : '开始检测'}
-                      </button>
-                    </div>
-
-                    <div className='flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 min-h-20'>
-                      {diagnosisResult ? (
-                        <div className='flex items-start gap-3'>
-                          <div
-                            className={`mt-0.5 ${
-                              diagnosisResult.pass
-                                ? 'text-green-500'
-                                : 'text-red-500'
-                            }`}
-                          >
-                            {diagnosisResult.pass ? (
-                              <svg
-                                className='w-5 h-5'
-                                fill='none'
-                                stroke='currentColor'
-                                viewBox='0 0 24 24'
-                              >
-                                <path
-                                  strokeLinecap='round'
-                                  strokeLinejoin='round'
-                                  strokeWidth='2'
-                                  d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
-                                />
-                              </svg>
-                            ) : (
-                              <svg
-                                className='w-5 h-5'
-                                fill='none'
-                                stroke='currentColor'
-                                viewBox='0 0 24 24'
-                              >
-                                <path
-                                  strokeLinecap='round'
-                                  strokeLinejoin='round'
-                                  strokeWidth='2'
-                                  d='M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-                                />
-                              </svg>
-                            )}
-                          </div>
-                          <div className='flex-1'>
-                            <div
-                              className={`text-sm font-medium ${
-                                diagnosisResult.pass
-                                  ? 'text-green-600 dark:text-green-400'
-                                  : 'text-red-600 dark:text-red-400'
-                              }`}
-                            >
-                              {diagnosisResult.pass
-                                ? '配置接口正常'
-                                : '配置接口异常'}
-                            </div>
-                            <div className='text-xs text-gray-500 mt-1 space-y-0.5'>
-                              <div>状态码: {diagnosisResult.status}</div>
-                              <div>类型: {diagnosisResult.contentType}</div>
-                              {diagnosisResult.issues?.length > 0 && (
-                                <div className='text-red-500 mt-1'>
-                                  {diagnosisResult.issues[0]}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className='h-full flex items-center justify-center text-xs text-gray-400'>
-                          点击检测按钮检查接口连通性
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* JAR 状态监控 */}
-                  <div className='bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col'>
-                    <div className='flex items-center justify-between mb-4'>
-                      <h4 className='text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2'>
-                        📦 JAR 状态
-                      </h4>
-                      <div className='flex gap-2'>
-                        <button
-                          onClick={handleCheckJarStatus}
-                          disabled={isCheckingJar}
-                          className='text-xs px-2 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
-                          title='检查状态'
-                        >
-                          {isCheckingJar ? '...' : '🔍'}
-                        </button>
-                        <button
-                          onClick={handleRefreshJar}
-                          disabled={isRefreshingJar}
-                          className='text-xs px-2 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-orange-600'
-                          title='强制刷新'
-                        >
-                          {isRefreshingJar ? '...' : '🔄'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className='flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 min-h-20'>
-                      {jarStatus ? (
-                        <div className='flex items-start gap-3'>
-                          <div
-                            className={`mt-0.5 ${
-                              jarStatus.fresh_status?.success
-                                ? 'text-green-500'
-                                : 'text-yellow-500'
-                            }`}
-                          >
-                            {jarStatus.fresh_status?.success ? '🟢' : '🟡'}
-                          </div>
-                          <div className='flex-1 min-w-0'>
-                            <div className='text-sm font-medium text-gray-800 dark:text-gray-200 truncate'>
-                              {jarStatus.fresh_status?.source
-                                ?.split('/')
-                                .pop() || '未知源'}
-                            </div>
-                            <div className='text-xs text-gray-500 mt-1 flex gap-2'>
-                              <span>
-                                {jarStatus.fresh_status?.size
-                                  ? Math.round(
-                                      jarStatus.fresh_status.size / 1024,
-                                    ) + 'KB'
-                                  : '-'}
-                              </span>
-                              <span className='truncate max-w-20'>
-                                {jarStatus.fresh_status?.md5?.substring(0, 6)}
-                                ...
-                              </span>
-                            </div>
-                            {jarStatus.fresh_status?.is_fallback && (
-                              <div className='text-xs text-yellow-600 mt-1'>
-                                ⚠️ 使用备用源
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className='h-full flex items-center justify-center text-xs text-gray-400'>
-                          暂无状态数据
-                        </div>
-                      )}
-                    </div>
-
-                    <div className='mt-3 grid grid-cols-2 gap-2'>
-                      <button
-                        onClick={() =>
-                          window.open('/api/tvbox/jar-diagnostic', '_blank')
-                        }
-                        className='px-2 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors text-center'
-                      >
-                        🔬 深度诊断
-                      </button>
-                      <button
-                        onClick={() =>
-                          window.open('/api/tvbox/jar-test', '_blank')
-                        }
-                        className='px-2 py-1.5 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded text-xs font-medium hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors text-center'
-                      >
-                        ⚡ 快速测试
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CollapsibleTab>
-
-            {/* 弹幕配置标签 */}
-            <CollapsibleTab
-              title='弹幕配置'
-              icon={
-                <MessageSquareText
-                  size={20}
-                  className='text-gray-600 dark:text-gray-400'
-                />
-              }
-              isExpanded={expandedTabs.danmuConfig}
-              onToggle={() => toggleTab('danmuConfig')}
-            >
-              <DanmuConfigComponent
-                config={config}
-                refreshConfig={fetchConfig}
-              />
-            </CollapsibleTab>
-
-            <CollapsibleTab
-              title='PanSou 配置'
-              icon={
-                <Cloud size={20} className='text-gray-600 dark:text-gray-400' />
-              }
-              isExpanded={expandedTabs.pansouConfig}
-              onToggle={() => toggleTab('pansouConfig')}
-            >
-              <PanSouConfigPanel config={config} refreshConfig={fetchConfig} />
-            </CollapsibleTab>
-
-            {/* 分类配置标签 */}
-            <CollapsibleTab
-              title='分类配置'
-              icon={
-                <FolderOpen
-                  size={20}
-                  className='text-gray-600 dark:text-gray-400'
-                />
-              }
-              isExpanded={expandedTabs.categoryConfig}
-              onToggle={() => toggleTab('categoryConfig')}
-            >
-              <CategoryConfig config={config} refreshConfig={fetchConfig} />
-            </CollapsibleTab>
-
-            {/* 数据迁移标签 - 仅站长可见 */}
-            {role === 'owner' && (
-              <CollapsibleTab
-                title='数据迁移'
-                icon={
-                  <Database
-                    size={20}
-                    className='text-gray-600 dark:text-gray-400'
-                  />
-                }
-                isExpanded={expandedTabs.dataMigration}
-                onToggle={() => toggleTab('dataMigration')}
-              >
-                <DataMigration onRefreshConfig={fetchConfig} />
-              </CollapsibleTab>
+            )}
+            {activeSection === 'dataMigration' && role === 'owner' && (
+              <DataMigration onRefreshConfig={fetchConfig} />
             )}
           </div>
+          </ManageLayout>
         </div>
       </div>
 

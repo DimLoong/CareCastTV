@@ -20,16 +20,7 @@
 
 /// <reference lib="dom" />
 
-import {
-  Cat,
-  Cloud,
-  Clover,
-  Film,
-  Home,
-  Radio,
-  Search,
-  Tv,
-} from 'lucide-react';
+import { HeartHandshake, Home, Search } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   memo,
@@ -41,7 +32,6 @@ import {
 } from 'react';
 
 import FastLink from './FastLink';
-import SourceBrowserIcon from './icons/SourceBrowserIcon';
 import { useSite } from './SiteProvider';
 import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
@@ -51,6 +41,7 @@ import { UserMenu } from './UserMenu';
  * - key: 唯一标识符，用于 activeTabKey 状态匹配
  * - 使用静态配置避免每次渲染重建数组
  */
+// CareCastTV 精简导航：管理员视图只保留 首页 / 搜索选片 / 关怀管理
 const NAV_ITEMS = [
   {
     key: 'home',
@@ -71,71 +62,13 @@ const NAV_ITEMS = [
     openInNewTab: false, // 搜索不需要新标签页
   },
   {
-    key: 'source-browser',
-    href: '/source-browser',
-    icon: SourceBrowserIcon,
-    label: '源浏览器',
-    chip: 'chip-source-browser',
+    key: 'manage',
+    href: '/care-admin',
+    icon: HeartHandshake,
+    label: '管理',
+    chip: 'chip-care-admin',
     type: 'exact',
-    openInNewTab: true,
-  },
-  {
-    key: 'netdisk',
-    href: '/netdisk',
-    icon: Cloud,
-    label: '网盘',
-    chip: 'chip-netdisk',
-    type: 'exact',
-    openInNewTab: true,
-  },
-  {
-    key: 'movie',
-    href: '/douban?type=movie',
-    icon: Film,
-    label: '电影',
-    chip: 'chip-movie',
-    type: 'douban',
-    doubanType: 'movie',
-    openInNewTab: true,
-  },
-  {
-    key: 'tv',
-    href: '/douban?type=tv',
-    icon: Tv,
-    label: '剧集',
-    chip: 'chip-tv',
-    type: 'douban',
-    doubanType: 'tv',
-    openInNewTab: true,
-  },
-  {
-    key: 'anime',
-    href: '/douban?type=anime',
-    icon: Cat,
-    label: '动漫',
-    chip: 'chip-anime',
-    type: 'douban',
-    doubanType: 'anime',
-    openInNewTab: true,
-  },
-  {
-    key: 'show',
-    href: '/douban?type=show',
-    icon: Clover,
-    label: '综艺',
-    chip: 'chip-show',
-    type: 'douban',
-    doubanType: 'show',
-    openInNewTab: true,
-  },
-  {
-    key: 'live',
-    href: '/live',
-    icon: Radio,
-    label: '直播',
-    chip: 'chip-live',
-    type: 'exact',
-    openInNewTab: true,
+    openInNewTab: false,
   },
 ] as const;
 
@@ -143,24 +76,21 @@ const NAV_ITEMS = [
  * 根据 pathname 和 searchParams 计算当前应该高亮的 Tab key
  * 用于初始化状态和浏览器后退时的同步
  */
-function computeActiveKey(pathname: string, type: string | null): string {
-  // 优先检查 douban 类型页面
-  if (pathname.startsWith('/douban') && type) {
-    return type; // 'movie' | 'tv' | 'anime' | 'show'
+function computeActiveKey(pathname: string, _type: string | null): string {
+  // 管理区域的三个标签页都归属"管理"导航项
+  if (
+    pathname === '/care-admin' ||
+    pathname === '/settings' ||
+    pathname === '/admin'
+  ) {
+    return 'manage';
   }
-
   // 精确路径匹配
   switch (pathname) {
     case '/':
       return 'home';
     case '/search':
       return 'search';
-    case '/netdisk':
-      return 'netdisk';
-    case '/source-browser':
-      return 'source-browser';
-    case '/live':
-      return 'live';
     default:
       // 未匹配到任何导航项，返回空字符串（不高亮任何 Tab）
       return '';
@@ -257,7 +187,7 @@ function TopNavbar() {
                 className='shrink-0 select-none hover:opacity-90 transition-opacity'
               >
                 <span className='text-xl font-black tracking-tight deco-brand'>
-                  {siteName || 'DecoTV'}
+                  {siteName || 'CareCastTV'}
                 </span>
               </FastLink>
             </div>
@@ -271,10 +201,8 @@ function TopNavbar() {
                 // 【关键】使用本地状态判断激活，而非 URL
                 // 这是"乐观 UI"的核心：点击即变色，不等 URL
                 const active = activeTabKey === item.key;
-                const activeRingClass =
-                  item.key === 'source-browser'
-                    ? 'ring-2 ring-emerald-400/70'
-                    : 'ring-2 ring-purple-400/60';
+                // 激活态使用品牌橙焦点环
+                const activeRingClass = 'ring-2 ring-orange-400/70';
 
                 return (
                   <FastLink

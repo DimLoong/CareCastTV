@@ -7,29 +7,6 @@ import { getAuthInfoFromCookie } from '@/lib/auth';
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 处理成人内容模式路径重写
-  // 如果路径以 /adult/ 开头，重写到实际 API 路径并添加 adult 标记
-  if (pathname.startsWith('/adult/')) {
-    const actualPath = pathname.replace('/adult/', '/');
-    const url = request.nextUrl.clone();
-    url.pathname = actualPath;
-
-    // 添加成人内容标记到查询参数
-    url.searchParams.set('adult', '1');
-
-    // 重写请求
-    const response = NextResponse.rewrite(url);
-    response.headers.set('X-Content-Mode', 'adult');
-
-    // 如果是 API 请求，继续处理认证
-    if (actualPath.startsWith('/api')) {
-      // 不返回，继续执行下面的认证逻辑
-      request = new NextRequest(url, request);
-    } else {
-      return response;
-    }
-  }
-
   // 跳过不需要认证的路径
   if (shouldSkipAuth(pathname)) {
     return NextResponse.next();
@@ -148,8 +125,6 @@ function shouldSkipAuth(pathname: string): boolean {
     '/icons/',
     '/logo.png',
     '/screenshot.png',
-    '/api/tvbox/config',
-    '/api/tvbox/diagnose',
     '/register', // 允许访问注册页面
   ];
 
@@ -166,8 +141,6 @@ function shouldSkipAuth(pathname: string): boolean {
       '/api/admin/site',
       '/api/admin/source',
       '/api/admin/category',
-      '/api/admin/pansou',
-      '/api/admin/live',
       '/api/admin/user',
       '/api/admin/config_file',
       '/api/admin/reset',

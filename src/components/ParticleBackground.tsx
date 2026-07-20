@@ -4,11 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 
 function shouldUseLiteRender(pathname: string): boolean {
-  return (
-    pathname.startsWith('/douban') ||
-    pathname.startsWith('/search') ||
-    pathname.startsWith('/source-browser')
-  );
+  return pathname.startsWith('/search');
 }
 
 export default function ParticleBackground() {

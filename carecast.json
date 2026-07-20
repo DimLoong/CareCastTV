@@ -1,0 +1,29 @@
+{
+  "version": 1752700000000,
+  "config": {
+    "careModeEnabled": true,
+    "countdownSeconds": 5,
+    "verifyTimeoutSeconds": 30,
+    "autoAdvance": true
+  },
+  "playlist": {
+    "items": [
+      {
+        "id": "pli_1",
+        "source": "源key",
+        "vodId": "12345",
+        "title": "某电视剧",
+        "totalEpisodes": 40
+      }
+    ],
+    "currentItemId": "pli_1",
+    "loop": false
+  },
+  "command": {
+    "id": "cmd-001",
+    "type": "playNow",
+    "source": "源key",
+    "vodId": "67890",
+    "title": "临时想看的电影"
+  }
+}

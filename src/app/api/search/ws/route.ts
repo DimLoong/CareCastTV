@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie, verifyApiAuth } from '@/lib/auth';
 import { toSimplified } from '@/lib/chinese';
-import { getAvailableApiSites, getConfig } from '@/lib/config';
+import { getAvailableApiSites } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { rankSearchResults } from '@/lib/search-ranking';
 import { yellowWords } from '@/lib/yellow';
@@ -35,7 +35,6 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const config = await getConfig();
   const apiSites = await getAvailableApiSites(username);
 
   // 将搜索关键词规范化为简体中文
@@ -125,9 +124,9 @@ export async function GET(request: NextRequest) {
           results.forEach((r) => uniqueMap.set(r.id, r));
           results = Array.from(uniqueMap.values());
 
-          // 成人内容过滤
+          // 成人内容过滤（CareCastTV 硬性开启）
           let filteredResults = results;
-          if (!config.SiteConfig.DisableYellowFilter) {
+          {
             filteredResults = results.filter((result) => {
               const typeName = result.type_name || '';
               // 检查源是否标记为成人资源

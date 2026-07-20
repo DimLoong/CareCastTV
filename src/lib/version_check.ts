@@ -25,7 +25,7 @@ export enum UpdateStatus {
 }
 
 // 远程版本源配置
-const UPDATE_REPO = process.env.NEXT_PUBLIC_UPDATE_REPO || 'Decohererk/DecoTV';
+const UPDATE_REPO = process.env.NEXT_PUBLIC_UPDATE_REPO || 'Decohererk/CareCastTV';
 const UPDATE_REF = process.env.NEXT_PUBLIC_UPDATE_REF || 'main';
 
 // 多个镜像源，确保至少一个能访问
@@ -46,7 +46,7 @@ const API_TIMEOUT = 5000; // API 超时 5 秒
 const FETCH_TIMEOUT = 6000; // 远程获取超时 6 秒
 
 // ============ 单例缓存机制 ============
-const CACHE_KEY = 'decotv_version_check_result';
+const CACHE_KEY = 'carecasttv_version_check_result';
 const CACHE_TTL = 5 * 60 * 1000; // 缓存 5 分钟
 
 // 内存缓存：避免同一页面多次调用
