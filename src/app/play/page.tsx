@@ -9,6 +9,7 @@ import { Download, Heart } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   buildCarePlayUrl,
@@ -35,6 +36,7 @@ import { generateCacheKey, globalCache } from '@/lib/unified-cache';
 import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 import { useCareAutoStop } from '@/hooks/useCareAutoStop';
 import { useCareIdleScreensaver } from '@/hooks/useCareIdleScreensaver';
+import { useCareInputBlocker } from '@/hooks/useCareInputBlocker';
 import { useCareRemoteConfig } from '@/hooks/useCareRemoteConfig';
 import { isIOSPlatform, useCast } from '@/hooks/useCast';
 import { useDoubanInfo } from '@/hooks/useDoubanInfo';
@@ -181,13 +183,20 @@ function PlayPageClient() {
   // 关怀模式下观看期间持续轮询远程配置（家属可远程切换节目）
   useCareRemoteConfig(isCareMode);
 
-  // 定时停止播放（护眼）：读取本地关怀配置的 autoStop 策略
+  // 定时停止播放（护眼）+ 防烧屏：读取本地关怀配置
   const [careAutoStopConfig, setCareAutoStopConfig] = useState(
     () => getCareConfig().autoStop,
   );
+  const [idleScreensaverSeconds, setIdleScreensaverSeconds] = useState(
+    () => getCareConfig().idleScreensaverSeconds,
+  );
   useEffect(() => {
     if (!isCareMode) return;
-    const sync = () => setCareAutoStopConfig(getCareConfig().autoStop);
+    const sync = () => {
+      const cfg = getCareConfig();
+      setCareAutoStopConfig(cfg.autoStop);
+      setIdleScreensaverSeconds(cfg.idleScreensaverSeconds);
+    };
     sync();
     window.addEventListener(CARECAST_UPDATE_EVENT, sync);
     return () => window.removeEventListener(CARECAST_UPDATE_EVENT, sync);
@@ -204,18 +213,41 @@ function PlayPageClient() {
     return () => clearInterval(timer);
   }, [isCareMode]);
 
-  // 触发定时停播后立即暂停播放器
+  // 触发定时停播：立即暂停播放器，并退出可能存在的浏览器原生全屏
+  // （原生全屏会把播放器提升到浏览器"顶层"，导致遮罩即使层级再高也可能
+  // 被视觉遮挡或允许交互穿透，必须先退出全屏，遮罩才能真正盖住一切）
   useEffect(() => {
-    if (autoStop.triggered && artPlayerRef.current && !artPlayerRef.current.paused) {
+    if (!autoStop.triggered) return;
+    if (artPlayerRef.current && !artPlayerRef.current.paused) {
       artPlayerRef.current.pause();
+    }
+    if (typeof document !== 'undefined' && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {
+        // 部分浏览器/权限下退出全屏可能失败，忽略即可，遮罩本身仍会拦截交互
+      });
     }
   }, [autoStop.triggered]);
 
-  // 防烧屏遮罩：停播提示屏或手动暂停超过 3 分钟无操作时生效
+  // 冷却结束自动恢复播放（零操作，符合本项目定位）
+  useEffect(() => {
+    if (autoStop.autoResumeTick > 0 && artPlayerRef.current?.paused) {
+      artPlayerRef.current.play().catch(() => {
+        // 浏览器可能阻止无用户手势的自动播放；此时画面已恢复正常播放界面，
+        // 家人手动点一下播放即可，不影响护眼提示屏已解除这一核心体验
+      });
+    }
+  }, [autoStop.autoResumeTick]);
+
+  // 停播提示屏 DOM 容器：input blocker 据此放行遮罩自身的交互（退出按钮）
+  const autoStopOverlayRef = useRef<HTMLDivElement | null>(null);
+  useCareInputBlocker(autoStop.triggered, autoStopOverlayRef);
+
+  // 防烧屏遮罩：停播提示屏或手动暂停超过设定时长无操作时生效
   const isScreensaverActive =
     isCareMode && (autoStop.triggered || isPlayerPaused);
   const isDimmedForBurnInProtection = useCareIdleScreensaver(
     isScreensaverActive,
+    idleScreensaverSeconds,
   );
 
   // 是否需要优选
@@ -2179,35 +2211,60 @@ function PlayPageClient() {
           </span>
         </div>
 
-        {/* 定时停止播放：纯黑屏 + 护眼提示 + 退出关怀模式入口 */}
-        {autoStop.triggered && (
-          <div className='absolute inset-0 z-30 flex flex-col items-center justify-center gap-8 bg-black text-white select-none px-6'>
-            <div className='text-7xl'>🌙</div>
-            <h1 className='text-4xl font-bold text-center'>
-              已停止播放，请休息一下
-            </h1>
-            <p className='text-xl text-gray-400 text-center'>
-              长时间观看对眼睛不好，为了呵护您的眼睛，已自动停止播放
-            </p>
-            <button
-              onClick={() => {
-                window.location.href = '/care/verify';
-              }}
-              className='brand-gradient-bg px-10 py-5 rounded-2xl text-2xl font-bold focus:outline-none focus:ring-8 focus:ring-orange-300/50 transition-all hover:brightness-110'
+        {/* 定时停止播放：纯黑屏 + 护眼提示 + 退出关怀模式入口
+            用 portal 挂到 document.body 并以最高 z-index 渲染——避免播放器
+            内部层级（如原生/网页全屏）导致遮罩被视觉遮挡或可被穿透操作；
+            配合 useCareInputBlocker 在事件层面彻底拦截，只放行退出按钮 */}
+        {autoStop.triggered &&
+          typeof document !== 'undefined' &&
+          createPortal(
+            <div
+              ref={autoStopOverlayRef}
+              className='fixed inset-0 flex flex-col items-center justify-center gap-8 bg-black text-white select-none px-6'
+              style={{ zIndex: 2147483000 }}
             >
-              退出关怀模式
-            </button>
-          </div>
-        )}
+              <div className='text-7xl'>🌙</div>
+              <h1 className='text-4xl font-bold text-center'>
+                已停止播放，请休息一下
+              </h1>
+              <p className='text-xl text-gray-400 text-center'>
+                长时间观看对眼睛不好，为了呵护您的眼睛，已自动停止播放
+              </p>
+              {autoStop.reason === 'duration' &&
+                autoStop.cooldownRemainingSeconds !== null && (
+                  <p className='text-lg text-orange-300 tabular-nums'>
+                    {Math.floor(autoStop.cooldownRemainingSeconds / 60)}分
+                    {autoStop.cooldownRemainingSeconds % 60}秒后自动恢复播放
+                  </p>
+                )}
+              <button
+                onClick={() => {
+                  window.location.href = '/care/verify';
+                }}
+                className='brand-gradient-bg px-10 py-5 rounded-2xl text-2xl font-bold focus:outline-none focus:ring-8 focus:ring-orange-300/50 transition-all hover:brightness-110'
+              >
+                退出关怀模式
+              </button>
+            </div>,
+            document.body,
+          )}
 
-        {/* 防烧屏遮罩：停播/暂停超过 3 分钟无操作，画面降到近乎纯黑 */}
-        {isDimmedForBurnInProtection && (
-          <div className='absolute inset-0 z-40 flex items-center justify-center bg-black'>
-            <p className='text-gray-700 text-sm tracking-widest'>
-              长时间无操作，按任意按键解锁
-            </p>
-          </div>
-        )}
+        {/* 防烧屏遮罩：停播/暂停超过设定时长无操作，画面降到近乎纯黑。
+            层级必须高于停播提示屏本身（可叠加在包括停播屏在内的任何内容之上），
+            配合 useCareIdleScreensaver 内部的捕获阶段拦截，任何交互都不会穿透 */}
+        {isDimmedForBurnInProtection &&
+          typeof document !== 'undefined' &&
+          createPortal(
+            <div
+              className='fixed inset-0 flex items-center justify-center bg-black'
+              style={{ zIndex: 2147483647 }}
+            >
+              <p className='text-gray-700 text-sm tracking-widest'>
+                长时间无操作，按任意按键解锁
+              </p>
+            </div>,
+            document.body,
+          )}
       </div>
     );
   }

@@ -303,6 +303,50 @@ admin/page.tsx 由 9520 行瘦身到约 6100 行。
 ### 后续待办
 
 - [ ] admin 页各配置表单（站点/用户/分类/配置文件）尚未转换为 TDesign 组件
+## 2026-07-21 — M3.1：admin 页全面 TDesign 化 + 停播/防烧屏遮罩层级修复 + 冷却自动恢复
+
+### 背景
+
+用户反馈上一轮改造遗留四个问题：admin 页大量表格与输入框仍是原生 HTML；定时停止播放缺少"冷却刷新"配置且护眼提示没有倒计时；停播提示屏层级不够高，导致画面虽变黑但播放器仍可被继续操作；防烧屏无操作黑屏时长应可配置（秒）且必须是全局最高层级。
+
+### 1. 停播/防烧屏层级与可操作性修复（核心 bug）
+
+**根因**：两个遮罩此前用 `absolute` + 较低 z-index 嵌套在播放器容器的兄弟节点里。ArtPlayer 开启 `fullscreenWeb`/原生 Fullscreen 后，播放器自身的层级会显著高于普通嵌套元素，导致遮罩视觉上盖住画面，但播放器控件仍可被点击/按键操作（用户描述"看不到画面但仍可操作"正是这个现象）。
+
+**修复**：
+- 两个遮罩改为 `createPortal` 挂载到 `document.body`，用内联 `style={{ zIndex }}` 而非 Tailwind 类名（避免 z-index 被 Tailwind 任意值截断），停播遮罩 `2147483000`，防烧屏遮罩 `2147483647`（更高，可叠加在停播遮罩之上，满足"最高层级"要求）
+- 新增 `hooks/useCareInputBlocker.ts`：在 `window` 捕获阶段拦截 keydown/keyup/pointerdown/mousedown/touchstart/wheel/contextmenu，早于播放器自身的任何事件监听器（包括文档级快捷键），从事件分发源头彻底拦截；仅放行遮罩自身 DOM 内的交互（退出按钮）
+- 触发停播时若存在 `document.fullscreenElement`，主动调用 `exitFullscreen()`，避免真全屏的浏览器"顶层"渲染语义绕过遮罩
+- `useCareIdleScreensaver` 原本就用同样的 window 捕获拦截手法，这次统一了两者的实现方式
+
+### 2. 定时停止播放：冷却刷新时间 + 倒计时 + 自动恢复
+
+- `CareAutoStopConfig` 新增 `cooldownMinutes`（默认 15）。仅对 `duration` 模式生效：达到连续播放上限后停止，冷却期内护眼提示屏显示"X分X秒后自动恢复播放"倒计时，冷却结束**自动恢复播放并重新计时，零操作**——这是刻意的产品取舍：`duration` 触发的停播是"该休息一下"的护眼提醒，不是惩罚性锁定；`dailyTime`（每日固定时间）仍保持"需退出关怀模式才能恢复"，因为那是当天的终止时间
+- `useCareAutoStop` 用 sessionStorage 记录触发时刻（`carecast_autostop_triggered_at`），冷却倒计时可跨组件重渲染/短暂重挂载保持连续；冷却结束时自增 `autoResumeTick`，play 页据此调用一次 `artPlayerRef.current.play()`（若浏览器阻止无手势自动播放会静默失败，用户手动点一下播放即可，不影响护眼提示已解除的核心体验）
+- care-admin「定时停止播放」卡片新增"冷却刷新时间（分钟）"输入项（仅 duration 模式显示）
+
+### 3. 防烧屏：无操作时长改为可配置秒数
+
+- `CareConfig` 新增顶层字段 `idleScreensaverSeconds`（默认 180）
+- `useCareIdleScreensaver` 从硬编码 3 分钟改为接收 `idleSeconds` 参数
+- care-admin 新增独立的「防烧屏保护」卡片，`InputNumber` 配置秒数（10-3600）
+
+### 4. admin 页全面 TDesign 化（表格 + 输入框）
+
+- **全部原生 `<input>`/`<select>` 转换**：26 个 `<input>`（text/password/url/number/checkbox）+ 3 个 `<select>` 全部替换为 TDesign `Input`/`InputNumber`/`Select`/`Checkbox`/`Textarea`；顺带删除了站点配置里两份自造的下拉框实现（含点击外部关闭的 useEffect），改用 `Select` 组件原生行为
+- **表格组件化**：
+  - 用户组表（无拖拽排序、无复杂条件权限）→ 完整改写为 TDesign `Table`（column + cell render），是本次唯一一个"表格外壳也组件化"的案例
+  - 用户列表表：选择框（全选 + 逐行）改为 TDesign `Checkbox`；表格外壳仍是原生 `<table>`——因为存在大量基于 `role`/`currentUsername` 的条件式操作按钮渲染（编辑权限、删除权限、能否修改密码等交叉判断），改写成 TDesign 数据驱动的 `columns` API 需要把这些判断挪进 `cell` 渲染函数，改动面大，本轮先只做输入元素替换，降低回归风险
+  - 视频源表、分类表：两者都基于 `@dnd-kit` 实现拖拽排序（`SortableContext` 包裹 `<tbody>`），TDesign Table 虽也有 `dragSort` 能力，但要接入现有 `useSortable`/`DndContext` 传感器配置需要专门验证，本轮同样只替换表格内的复选框/按钮为 TDesign 组件，表格外壳保留原生 `<table>`，避免在缺乏交互测试条件下改动排序这一关键功能
+
+### 验证
+
+- typecheck / eslint(`--max-warnings=0`) / `next build` 全部通过
+- 冒烟：`/`、`/login`、`/register`、`/settings`、`/care-admin`、`/admin`、`/care`、`/care/verify` 均 200，服务端日志无报错
+
+### 后续待办
+
+- [ ] admin 页用户表/视频源表/分类表的表格外壳（非输入元素）仍是原生 `<table>`，如需彻底组件化需分别处理条件权限渲染与 dnd-kit 拖拽集成
 - [ ] M2：关怀配置迁移到服务端存储（redis/upstash 模式下多设备共享）
 - [ ] M2：老人端状态上报（当前在看什么、播放器状态），供家属远程查看
 - [ ] M3：播放列表支持"从第 x 集到第 y 集"的区间播放

@@ -63,14 +63,19 @@ export interface CareRemoteSource {
 
 /**
  * 定时停止播放（护眼）：
- * - 'duration'：连续观看达到指定分钟数后停止（从进入播放页开始累计，退出关怀模式会重置计时）
- * - 'dailyTime'：每天到达指定的北京时间后停止（如晚上 22:00 后不再播放）
+ * - 'duration'：连续观看达到指定分钟数后停止（从进入播放页开始累计，退出关怀模式会重置计时）。
+ *   停止后进入 cooldownMinutes 冷却期，护眼提示屏上显示倒计时；冷却结束后自动恢复播放并重新计时，
+ *   无需家人操作（符合"零操作"的产品定位——停播是护眼提醒，不是惩罚性锁定）
+ * - 'dailyTime'：每天到达指定的北京时间后停止（如晚上 22:00 后不再播放）。
+ *   这是当天的终止时间，不设冷却自动恢复，需退出关怀模式才能继续
  */
 export interface CareAutoStopConfig {
   enabled: boolean;
   mode: 'duration' | 'dailyTime';
   /** 连续播放多少分钟后停止（mode='duration' 时生效） */
   maxContinuousMinutes: number;
+  /** 停止后冷却多少分钟自动恢复播放（mode='duration' 时生效） */
+  cooldownMinutes: number;
   /** 每天几点后停止播放，北京时间 "HH:mm"（mode='dailyTime' 时生效） */
   dailyStopTime: string;
 }
@@ -86,6 +91,8 @@ export interface CareConfig {
   autoAdvance: boolean;
   /** 定时停止播放（护眼），见 {@link CareAutoStopConfig} */
   autoStop: CareAutoStopConfig;
+  /** 防烧屏保护：停播提示屏或手动暂停后，无操作多少秒进入近乎纯黑的低亮度遮罩 */
+  idleScreensaverSeconds: number;
   remote: CareRemoteSource;
   updatedAt: number;
 }
@@ -99,8 +106,10 @@ export const DEFAULT_CARE_CONFIG: CareConfig = {
     enabled: false,
     mode: 'duration',
     maxContinuousMinutes: 60,
+    cooldownMinutes: 15,
     dailyStopTime: '22:00',
   },
+  idleScreensaverSeconds: 180,
   remote: {
     enabled: false,
     url: '',
@@ -163,12 +172,14 @@ export const careRemoteFileSchema = z.object({
           enabled: z.boolean().optional(),
           mode: z.enum(['duration', 'dailyTime']).optional(),
           maxContinuousMinutes: z.number().int().min(5).max(1440).optional(),
+          cooldownMinutes: z.number().int().min(1).max(1440).optional(),
           dailyStopTime: z
             .string()
             .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
             .optional(),
         })
         .optional(),
+      idleScreensaverSeconds: z.number().int().min(10).max(3600).optional(),
     })
     .optional(),
   playlist: z

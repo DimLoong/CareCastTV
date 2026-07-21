@@ -341,7 +341,9 @@ export default function CareAdminPage() {
               定时停止播放（护眼）
             </h2>
             <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>
-              触发后播放器暂停并显示纯黑护眼提示屏，需退出关怀模式（算术验证）才能恢复
+              触发后播放器暂停并显示纯黑护眼提示屏。
+              按连续播放时长触发的会在冷却时间结束后自动恢复播放；
+              按每日固定时间触发的需退出关怀模式（算术验证）才能恢复
             </p>
           </div>
 
@@ -375,24 +377,46 @@ export default function CareAdminPage() {
               </div>
 
               {config.autoStop.mode === 'duration' ? (
-                <label className='flex items-center justify-between gap-4'>
-                  <span className='text-gray-700 dark:text-gray-300'>
-                    连续播放多久后停止（分钟）
-                    <span className='block text-xs text-gray-400'>
-                      从进入播放页开始累计，退出关怀模式会重新计时
+                <>
+                  <label className='flex items-center justify-between gap-4'>
+                    <span className='text-gray-700 dark:text-gray-300'>
+                      连续播放多久后停止（分钟）
+                      <span className='block text-xs text-gray-400'>
+                        从进入播放页开始累计，退出关怀模式会重新计时
+                      </span>
                     </span>
-                  </span>
-                  <InputNumber
-                    theme='column'
-                    min={5}
-                    max={1440}
-                    value={config.autoStop.maxContinuousMinutes}
-                    onChange={(v) =>
-                      updateAutoStop({ maxContinuousMinutes: Number(v) || 60 })
-                    }
-                    className='w-32'
-                  />
-                </label>
+                    <InputNumber
+                      theme='column'
+                      min={5}
+                      max={1440}
+                      value={config.autoStop.maxContinuousMinutes}
+                      onChange={(v) =>
+                        updateAutoStop({
+                          maxContinuousMinutes: Number(v) || 60,
+                        })
+                      }
+                      className='w-32'
+                    />
+                  </label>
+                  <label className='flex items-center justify-between gap-4'>
+                    <span className='text-gray-700 dark:text-gray-300'>
+                      冷却刷新时间（分钟）
+                      <span className='block text-xs text-gray-400'>
+                        停止后休息多久自动恢复播放并重新计时（护眼提示屏会显示倒计时）
+                      </span>
+                    </span>
+                    <InputNumber
+                      theme='column'
+                      min={1}
+                      max={1440}
+                      value={config.autoStop.cooldownMinutes}
+                      onChange={(v) =>
+                        updateAutoStop({ cooldownMinutes: Number(v) || 15 })
+                      }
+                      className='w-32'
+                    />
+                  </label>
+                </>
               ) : (
                 <label className='flex items-center justify-between gap-4'>
                   <span className='text-gray-700 dark:text-gray-300'>
@@ -423,6 +447,36 @@ export default function CareAdminPage() {
               )}
             </>
           )}
+        </section>
+        )}
+
+        {/* ------------------------- 防烧屏保护 ------------------------- */}
+        {activeSection === 'strategy' && (
+        <section className='rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-6 space-y-5'>
+          <div>
+            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+              防烧屏保护
+            </h2>
+            <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>
+              护眼提示屏或手动暂停画面长时间静止后，进一步降为近乎纯黑，避免电视烧屏；
+              该遮罩层级高于护眼提示屏，任意按键或点击都可解除
+            </p>
+          </div>
+          <label className='flex items-center justify-between gap-4'>
+            <span className='text-gray-700 dark:text-gray-300'>
+              无操作多久后黑屏（秒）
+            </span>
+            <InputNumber
+              theme='column'
+              min={10}
+              max={3600}
+              value={config.idleScreensaverSeconds}
+              onChange={(v) =>
+                updateConfig({ idleScreensaverSeconds: Number(v) || 180 })
+              }
+              className='w-32'
+            />
+          </label>
         </section>
         )}
 

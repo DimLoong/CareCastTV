@@ -25,7 +25,6 @@ import {
   AlertCircle,
   AlertTriangle,
   Check,
-  ChevronDown,
   Copy,
   Database,
   Download,
@@ -41,7 +40,16 @@ import { GripVertical } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Switch } from 'tdesign-react';
+import {
+  Button,
+  Checkbox,
+  Input,
+  InputNumber,
+  Select,
+  Switch,
+  Table,
+  Textarea,
+} from 'tdesign-react';
 import 'tdesign-react/lib/_util/react-19-adapter';
 
 import { AdminConfig } from '@/lib/admin.types';
@@ -735,73 +743,57 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
           </button>
         </div>
 
-        {/* 用户组列表 */}
-        <div className='border border-gray-200 dark:border-gray-700 rounded-lg max-h-80 overflow-y-auto overflow-x-auto relative'>
-          <table className='min-w-full divide-y divide-gray-200 dark:divide-gray-700'>
-            <thead className='bg-gray-50 dark:bg-gray-900 sticky top-0 z-10'>
-              <tr>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  用户组名称
-                </th>
-                <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  可用视频源
-                </th>
-                <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody className='divide-y divide-gray-200 dark:divide-gray-700'>
-              {userGroups.map((group) => (
-                <tr
-                  key={group.name}
-                  className='hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors'
-                >
-                  <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100'>
-                    {group.name}
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap'>
-                    <div className='flex items-center space-x-2'>
-                      <span className='text-sm text-gray-900 dark:text-gray-100'>
-                        {group.enabledApis && group.enabledApis.length > 0
-                          ? `${group.enabledApis.length} 个源`
-                          : '无限制'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
-                    <button
-                      onClick={() => handleStartEditUserGroup(group)}
-                      disabled={isLoading(`userGroup_edit_${group.name}`)}
-                      className={`${buttonStyles.roundedPrimary} ${
-                        isLoading(`userGroup_edit_${group.name}`)
-                          ? 'opacity-50 cursor-not-allowed'
-                          : ''
-                      }`}
+        {/* 用户组列表（TDesign Table） */}
+        <div className='max-h-80 overflow-y-auto relative rounded-lg'>
+          <Table
+            rowKey='name'
+            data={userGroups}
+            columns={[
+              {
+                colKey: 'name',
+                title: '用户组名称',
+                width: 200,
+              },
+              {
+                colKey: 'enabledApis',
+                title: '可用视频源',
+                cell: ({ row }) =>
+                  row.enabledApis && row.enabledApis.length > 0
+                    ? `${row.enabledApis.length} 个源`
+                    : '无限制',
+              },
+              {
+                colKey: 'op',
+                title: '操作',
+                align: 'right',
+                cell: ({ row }) => (
+                  <div className='space-x-2'>
+                    <Button
+                      size='small'
+                      variant='text'
+                      theme='primary'
+                      loading={isLoading(`userGroup_edit_${row.name}`)}
+                      onClick={() => handleStartEditUserGroup(row)}
                     >
                       编辑
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUserGroup(group.name)}
-                      className={buttonStyles.roundedDanger}
+                    </Button>
+                    <Button
+                      size='small'
+                      variant='text'
+                      theme='danger'
+                      onClick={() => handleDeleteUserGroup(row.name)}
                     >
                       删除
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {userGroups.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={3}
-                    className='px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400'
-                  >
-                    暂无用户组，请添加用户组来管理用户权限
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </Button>
+                  </div>
+                ),
+              },
+            ]}
+            empty='暂无用户组，请添加用户组来管理用户权限'
+            stripe
+            hover
+            size='medium'
+          />
         </div>
       </div>
 
@@ -851,56 +843,43 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
           <div className='mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700'>
             <div className='space-y-4'>
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-                <input
-                  type='text'
+                <Input
                   placeholder='用户名'
                   value={newUser.username}
-                  onChange={(e) =>
-                    setNewUser((prev) => ({
-                      ...prev,
-                      username: e.target.value,
-                    }))
+                  onChange={(v) =>
+                    setNewUser((prev) => ({ ...prev, username: v }))
                   }
-                  className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
                 />
-                <input
+                <Input
                   type='password'
                   placeholder='密码'
                   value={newUser.password}
-                  onChange={(e) =>
-                    setNewUser((prev) => ({
-                      ...prev,
-                      password: e.target.value,
-                    }))
+                  onChange={(v) =>
+                    setNewUser((prev) => ({ ...prev, password: v }))
                   }
-                  className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
                 />
               </div>
               <div>
                 <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
                   用户组（可选）
                 </label>
-                <select
+                <Select
                   value={newUser.userGroup}
-                  onChange={(e) =>
-                    setNewUser((prev) => ({
-                      ...prev,
-                      userGroup: e.target.value,
-                    }))
+                  onChange={(v) =>
+                    setNewUser((prev) => ({ ...prev, userGroup: String(v) }))
                   }
-                  className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
-                >
-                  <option value=''>无用户组（无限制）</option>
-                  {userGroups.map((group) => (
-                    <option key={group.name} value={group.name}>
-                      {group.name} (
-                      {group.enabledApis && group.enabledApis.length > 0
-                        ? `${group.enabledApis.length} 个源`
-                        : '无限制'}
-                      )
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { label: '无用户组（无限制）', value: '' },
+                    ...userGroups.map((group) => ({
+                      label: `${group.name} (${
+                        group.enabledApis && group.enabledApis.length > 0
+                          ? `${group.enabledApis.length} 个源`
+                          : '无限制'
+                      })`,
+                      value: group.name,
+                    })),
+                  ]}
+                />
               </div>
               <div className='flex justify-end'>
                 <button
@@ -932,24 +911,20 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
               修改用户密码
             </h5>
             <div className='flex flex-col sm:flex-row gap-4 sm:gap-3'>
-              <input
-                type='text'
+              <Input
                 placeholder='用户名'
                 value={changePasswordUser.username}
                 disabled
-                className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 cursor-not-allowed'
+                className='flex-1'
               />
-              <input
+              <Input
                 type='password'
                 placeholder='新密码'
                 value={changePasswordUser.password}
-                onChange={(e) =>
-                  setChangePasswordUser((prev) => ({
-                    ...prev,
-                    password: e.target.value,
-                  }))
+                onChange={(v) =>
+                  setChangePasswordUser((prev) => ({ ...prev, password: v }))
                 }
-                className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                className='flex-1'
               />
               <button
                 onClick={handleChangePassword}
@@ -1002,11 +977,9 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                     );
 
                     return hasAnyPermission ? (
-                      <input
-                        type='checkbox'
+                      <Checkbox
                         checked={selectAllUsers}
-                        onChange={(e) => handleSelectAllUsers(e.target.checked)}
-                        className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600'
+                        onChange={(v) => handleSelectAllUsers(!!v)}
                       />
                     ) : (
                       <div className='w-4 h-4' />
@@ -1096,16 +1069,11 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                           (role === 'admin' &&
                             (user.role === 'user' ||
                               user.username === currentUsername)) ? (
-                            <input
-                              type='checkbox'
+                            <Checkbox
                               checked={selectedUsers.has(user.username)}
-                              onChange={(e) =>
-                                handleSelectUser(
-                                  user.username,
-                                  e.target.checked,
-                                )
+                              onChange={(v) =>
+                                handleSelectUser(user.username, !!v)
                               }
-                              className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600'
                             />
                           ) : (
                             <div className='w-4 h-4' />
@@ -1371,11 +1339,10 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                         key={source.key}
                         className='flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors'
                       >
-                        <input
-                          type='checkbox'
+                        <Checkbox
                           checked={selectedApis.includes(source.key)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
+                          onChange={(v) => {
+                            if (v) {
                               setSelectedApis([...selectedApis, source.key]);
                             } else {
                               setSelectedApis(
@@ -1385,7 +1352,6 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                               );
                             }
                           }}
-                          className='rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700'
                         />
                         <div className='flex-1 min-w-0'>
                           <div className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
@@ -1516,17 +1482,12 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                     <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
                       用户组名称
                     </label>
-                    <input
-                      type='text'
+                    <Input
                       placeholder='请输入用户组名称'
                       value={newUserGroup.name}
-                      onChange={(e) =>
-                        setNewUserGroup((prev) => ({
-                          ...prev,
-                          name: e.target.value,
-                        }))
+                      onChange={(v) =>
+                        setNewUserGroup((prev) => ({ ...prev, name: v }))
                       }
-                      className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                     />
                   </div>
 
@@ -1541,13 +1502,12 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                           key={source.key}
                           className='flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors'
                         >
-                          <input
-                            type='checkbox'
+                          <Checkbox
                             checked={newUserGroup.enabledApis.includes(
                               source.key,
                             )}
-                            onChange={(e) => {
-                              if (e.target.checked) {
+                            onChange={(v) => {
+                              if (v) {
                                 setNewUserGroup((prev) => ({
                                   ...prev,
                                   enabledApis: [
@@ -1564,7 +1524,6 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                                 }));
                               }
                             }}
-                            className='rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700'
                           />
                           <div className='flex-1 min-w-0'>
                             <div className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
@@ -1702,13 +1661,12 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                           key={source.key}
                           className='flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors'
                         >
-                          <input
-                            type='checkbox'
+                          <Checkbox
                             checked={editingUserGroup.enabledApis.includes(
                               source.key,
                             )}
-                            onChange={(e) => {
-                              if (e.target.checked) {
+                            onChange={(v) => {
+                              if (v) {
                                 setEditingUserGroup((prev) =>
                                   prev
                                     ? {
@@ -1733,7 +1691,6 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                                 );
                               }
                             }}
-                            className='rounded border-gray-300 text-purple-600 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700'
                           />
                           <div className='flex-1 min-w-0'>
                             <div className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
@@ -1888,26 +1845,27 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
                     选择用户组：
                   </label>
-                  <select
+                  <Select
                     value={
                       selectedUserGroups.length > 0 ? selectedUserGroups[0] : ''
                     }
-                    onChange={(e) => {
-                      const value = e.target.value;
+                    onChange={(v) => {
+                      const value = String(v);
                       setSelectedUserGroups(value ? [value] : []);
                     }}
-                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors'
-                  >
-                    <option value=''>无用户组（无限制）</option>
-                    {userGroups.map((group) => (
-                      <option key={group.name} value={group.name}>
-                        {group.name}{' '}
-                        {group.enabledApis && group.enabledApis.length > 0
-                          ? `(${group.enabledApis.length} 个源)`
-                          : ''}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { label: '无用户组（无限制）', value: '' },
+                      ...userGroups.map((group) => ({
+                        label: `${group.name} ${
+                          group.enabledApis && group.enabledApis.length > 0
+                            ? `(${group.enabledApis.length} 个源)`
+                            : ''
+                        }`,
+                        value: group.name,
+                      })),
+                    ]}
+                    className='w-full'
+                  />
                   <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
                     选择"无用户组"为无限制，选择特定用户组将限制用户只能访问该用户组允许的采集源
                   </p>
@@ -2278,21 +2236,22 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                     <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
                       选择用户组：
                     </label>
-                    <select
-                      onChange={(e) => setSelectedUserGroup(e.target.value)}
-                      className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors'
+                    <Select
+                      onChange={(v) => setSelectedUserGroup(String(v))}
                       value={selectedUserGroup}
-                    >
-                      <option value=''>无用户组（无限制）</option>
-                      {userGroups.map((group) => (
-                        <option key={group.name} value={group.name}>
-                          {group.name}{' '}
-                          {group.enabledApis && group.enabledApis.length > 0
-                            ? `(${group.enabledApis.length} 个源)`
-                            : ''}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { label: '无用户组（无限制）', value: '' },
+                        ...userGroups.map((group) => ({
+                          label: `${group.name} ${
+                            group.enabledApis && group.enabledApis.length > 0
+                              ? `(${group.enabledApis.length} 个源)`
+                              : ''
+                          }`,
+                          value: group.name,
+                        })),
+                      ]}
+                      className='w-full'
+                    />
                     <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
                       选择"无用户组"为无限制，选择特定用户组将限制用户只能访问该用户组允许的采集源
                     </p>
@@ -3320,11 +3279,9 @@ const VideoSourceConfig = ({
           <GripVertical size={16} />
         </td>
         <td className='px-2 py-4 text-center'>
-          <input
-            type='checkbox'
+          <Checkbox
             checked={selectedSources.has(source.key)}
-            onChange={(e) => handleSelectSource(source.key, e.target.checked)}
-            className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600'
+            onChange={(v) => handleSelectSource(source.key, !!v)}
           />
         </td>
         {/* 第一列：名称 + Key（换行展示） */}
@@ -3874,12 +3831,10 @@ const VideoSourceConfig = ({
       {showAddForm && (
         <div className='p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 space-y-4'>
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-            <input
-              type='text'
+            <Input
               placeholder='名称'
               value={newSource.name}
-              onChange={(e) => {
-                const name = e.target.value;
+              onChange={(name) => {
                 setNewSource((prev) => ({
                   ...prev,
                   name,
@@ -3889,37 +3844,30 @@ const VideoSourceConfig = ({
                     prev.is_adult,
                 }));
               }}
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
             />
-            <input
-              type='text'
-              placeholder='Key'
-              value={newSource.key}
-              onChange={(e) =>
-                setNewSource((prev) => ({ ...prev, key: e.target.value }))
-              }
-              // 编辑模式下 key 不可修改：它被播放记录与关怀播放列表引用
-              disabled={!!editingKey}
+            <span
+              className='block'
               title={editingKey ? 'key 不可修改' : undefined}
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
-            />
-            <input
-              type='text'
+            >
+              <Input
+                placeholder='Key'
+                value={newSource.key}
+                onChange={(key) => setNewSource((prev) => ({ ...prev, key }))}
+                // 编辑模式下 key 不可修改：它被播放记录与关怀播放列表引用
+                disabled={!!editingKey}
+              />
+            </span>
+            <Input
               placeholder='API 地址'
               value={newSource.api}
-              onChange={(e) =>
-                setNewSource((prev) => ({ ...prev, api: e.target.value }))
-              }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              onChange={(api) => setNewSource((prev) => ({ ...prev, api }))}
             />
-            <input
-              type='text'
+            <Input
               placeholder='Detail 地址（选填）'
               value={newSource.detail}
-              onChange={(e) =>
-                setNewSource((prev) => ({ ...prev, detail: e.target.value }))
+              onChange={(detail) =>
+                setNewSource((prev) => ({ ...prev, detail }))
               }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
             />
           </div>
 
@@ -4001,11 +3949,9 @@ const VideoSourceConfig = ({
               <tr>
                 <th className='w-8' />
                 <th className='w-12 px-2 py-3 text-center'>
-                  <input
-                    type='checkbox'
+                  <Checkbox
                     checked={selectAll}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600'
+                    onChange={(v) => handleSelectAll(!!v)}
                   />
                 </th>
                 <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
@@ -4077,15 +4023,11 @@ const VideoSourceConfig = ({
                 请输入检测用的搜索关键词
               </p>
               <div className='space-y-4'>
-                <input
-                  type='text'
+                <Input
                   placeholder='请输入搜索关键词'
                   value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                  onKeyPress={(e) =>
-                    e.key === 'Enter' && handleValidateSources()
-                  }
+                  onChange={(v) => setSearchKeyword(v)}
+                  onEnter={handleValidateSources}
                 />
                 <div className='flex justify-end space-x-3'>
                   <button
@@ -4395,36 +4337,32 @@ const CategoryConfig = ({
       {showAddForm && (
         <div className='p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 space-y-4'>
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-            <input
-              type='text'
+            <Input
               placeholder='分类名称'
               value={newCategory.name}
-              onChange={(e) =>
-                setNewCategory((prev) => ({ ...prev, name: e.target.value }))
+              onChange={(name) =>
+                setNewCategory((prev) => ({ ...prev, name }))
               }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
             />
-            <select
+            <Select
               value={newCategory.type}
-              onChange={(e) =>
+              onChange={(v) =>
                 setNewCategory((prev) => ({
                   ...prev,
-                  type: e.target.value as 'movie' | 'tv',
+                  type: v as 'movie' | 'tv',
                 }))
               }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-            >
-              <option value='movie'>电影</option>
-              <option value='tv'>电视剧</option>
-            </select>
-            <input
-              type='text'
+              options={[
+                { label: '电影', value: 'movie' },
+                { label: '电视剧', value: 'tv' },
+              ]}
+            />
+            <Input
               placeholder='搜索关键词'
               value={newCategory.query}
-              onChange={(e) =>
-                setNewCategory((prev) => ({ ...prev, query: e.target.value }))
+              onChange={(query) =>
+                setNewCategory((prev) => ({ ...prev, query }))
               }
-              className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
             />
           </div>
           <div className='flex justify-end'>
@@ -4784,13 +4722,10 @@ const ConfigFileComponent = ({
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
               订阅URL
             </label>
-            <input
-              type='url'
+            <Input
               value={subscriptionUrl}
-              onChange={(e) => setSubscriptionUrl(e.target.value)}
+              onChange={(v) => setSubscriptionUrl(v)}
               placeholder='https://example.com/config.json'
-              disabled={false}
-              className='w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 shadow-sm hover:border-gray-400 dark:hover:border-gray-500'
             />
             <p className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
               输入配置文件的订阅地址，要求 JSON 格式，且使用 Base58 编码
@@ -4926,11 +4861,6 @@ const SiteConfigComponent = ({
     LoginBackground: 'https://pan.yyds.nyc.mn/background.png',
   });
 
-  // 豆瓣数据源相关状态
-  const [isDoubanDropdownOpen, setIsDoubanDropdownOpen] = useState(false);
-  const [isDoubanImageProxyDropdownOpen, setIsDoubanImageProxyDropdownOpen] =
-    useState(false);
-
   // 豆瓣数据源选项
   const doubanDataSourceOptions = [
     { value: 'direct', label: '直连（服务器直接请求豆瓣）' },
@@ -4994,41 +4924,6 @@ const SiteConfigComponent = ({
     }
   }, [config]);
 
-  // 点击外部区域关闭下拉框
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isDoubanDropdownOpen) {
-        const target = event.target as Element;
-        if (!target.closest('[data-dropdown="douban-datasource"]')) {
-          setIsDoubanDropdownOpen(false);
-        }
-      }
-    };
-
-    if (isDoubanDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () =>
-        document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isDoubanDropdownOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isDoubanImageProxyDropdownOpen) {
-        const target = event.target as Element;
-        if (!target.closest('[data-dropdown="douban-image-proxy"]')) {
-          setIsDoubanImageProxyDropdownOpen(false);
-        }
-      }
-    };
-
-    if (isDoubanImageProxyDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () =>
-        document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isDoubanImageProxyDropdownOpen]);
-
   // 处理豆瓣数据源变化
   const handleDoubanDataSourceChange = (value: string) => {
     setSiteSettings((prev) => ({
@@ -5084,13 +4979,11 @@ const SiteConfigComponent = ({
         <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
           站点名称
         </label>
-        <input
-          type='text'
+        <Input
           value={siteSettings.SiteName}
-          onChange={(e) =>
-            setSiteSettings((prev) => ({ ...prev, SiteName: e.target.value }))
+          onChange={(v) =>
+            setSiteSettings((prev) => ({ ...prev, SiteName: v }))
           }
-          className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
         />
       </div>
 
@@ -5099,16 +4992,12 @@ const SiteConfigComponent = ({
         <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
           站点公告
         </label>
-        <textarea
+        <Textarea
           value={siteSettings.Announcement}
-          onChange={(e) =>
-            setSiteSettings((prev) => ({
-              ...prev,
-              Announcement: e.target.value,
-            }))
+          onChange={(v) =>
+            setSiteSettings((prev) => ({ ...prev, Announcement: v }))
           }
           rows={3}
-          className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
         />
       </div>
 
@@ -5118,55 +5007,12 @@ const SiteConfigComponent = ({
           <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
             豆瓣数据代理
           </label>
-          <div className='relative' data-dropdown='douban-datasource'>
-            {/* 自定义下拉选择框 */}
-            <button
-              type='button'
-              onClick={() => setIsDoubanDropdownOpen(!isDoubanDropdownOpen)}
-              className='w-full px-3 py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm hover:border-gray-400 dark:hover:border-gray-500 text-left'
-            >
-              {
-                doubanDataSourceOptions.find(
-                  (option) => option.value === siteSettings.DoubanProxyType,
-                )?.label
-              }
-            </button>
-
-            {/* 下拉箭头 */}
-            <div className='absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none'>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
-                  isDoubanDropdownOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </div>
-
-            {/* 下拉选项列表 */}
-            {isDoubanDropdownOpen && (
-              <div className='absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto'>
-                {doubanDataSourceOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type='button'
-                    onClick={() => {
-                      handleDoubanDataSourceChange(option.value);
-                      setIsDoubanDropdownOpen(false);
-                    }}
-                    className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      siteSettings.DoubanProxyType === option.value
-                        ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                        : 'text-gray-900 dark:text-gray-100'
-                    }`}
-                  >
-                    <span className='truncate'>{option.label}</span>
-                    {siteSettings.DoubanProxyType === option.value && (
-                      <Check className='w-4 h-4 text-green-600 dark:text-green-400 shrink-0 ml-2' />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Select
+            value={siteSettings.DoubanProxyType}
+            onChange={(v) => handleDoubanDataSourceChange(String(v))}
+            options={doubanDataSourceOptions}
+            className='w-full'
+          />
           <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
             选择获取豆瓣数据的方式
           </p>
@@ -5199,17 +5045,12 @@ const SiteConfigComponent = ({
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
               豆瓣代理地址
             </label>
-            <input
-              type='text'
+            <Input
               placeholder='例如: https://proxy.example.com/fetch?url='
               value={siteSettings.DoubanProxy}
-              onChange={(e) =>
-                setSiteSettings((prev) => ({
-                  ...prev,
-                  DoubanProxy: e.target.value,
-                }))
+              onChange={(v) =>
+                setSiteSettings((prev) => ({ ...prev, DoubanProxy: v }))
               }
-              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm hover:border-gray-400 dark:hover:border-gray-500'
             />
             <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
               自定义代理服务器地址
@@ -5224,60 +5065,12 @@ const SiteConfigComponent = ({
           <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
             豆瓣图片代理
           </label>
-          <div className='relative' data-dropdown='douban-image-proxy'>
-            {/* 自定义下拉选择框 */}
-            <button
-              type='button'
-              onClick={() =>
-                setIsDoubanImageProxyDropdownOpen(
-                  !isDoubanImageProxyDropdownOpen,
-                )
-              }
-              className='w-full px-3 py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm hover:border-gray-400 dark:hover:border-gray-500 text-left'
-            >
-              {
-                doubanImageProxyTypeOptions.find(
-                  (option) =>
-                    option.value === siteSettings.DoubanImageProxyType,
-                )?.label
-              }
-            </button>
-
-            {/* 下拉箭头 */}
-            <div className='absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none'>
-              <ChevronDown
-                className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
-                  isDoubanImageProxyDropdownOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </div>
-
-            {/* 下拉选项列表 */}
-            {isDoubanImageProxyDropdownOpen && (
-              <div className='absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto'>
-                {doubanImageProxyTypeOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type='button'
-                    onClick={() => {
-                      handleDoubanImageProxyChange(option.value);
-                      setIsDoubanImageProxyDropdownOpen(false);
-                    }}
-                    className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      siteSettings.DoubanImageProxyType === option.value
-                        ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                        : 'text-gray-900 dark:text-gray-100'
-                    }`}
-                  >
-                    <span className='truncate'>{option.label}</span>
-                    {siteSettings.DoubanImageProxyType === option.value && (
-                      <Check className='w-4 h-4 text-green-600 dark:text-green-400 shrink-0 ml-2' />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Select
+            value={siteSettings.DoubanImageProxyType}
+            onChange={(v) => handleDoubanImageProxyChange(String(v))}
+            options={doubanImageProxyTypeOptions}
+            className='w-full'
+          />
           <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
             选择获取豆瓣图片的方式
           </p>
@@ -5310,17 +5103,12 @@ const SiteConfigComponent = ({
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
               豆瓣图片代理地址
             </label>
-            <input
-              type='text'
+            <Input
               placeholder='例如: https://proxy.example.com/fetch?url='
               value={siteSettings.DoubanImageProxy}
-              onChange={(e) =>
-                setSiteSettings((prev) => ({
-                  ...prev,
-                  DoubanImageProxy: e.target.value,
-                }))
+              onChange={(v) =>
+                setSiteSettings((prev) => ({ ...prev, DoubanImageProxy: v }))
               }
-              className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm hover:border-gray-400 dark:hover:border-gray-500'
             />
             <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
               自定义图片代理服务器地址
@@ -5334,17 +5122,17 @@ const SiteConfigComponent = ({
         <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
           搜索接口可拉取最大页数
         </label>
-        <input
-          type='number'
+        <InputNumber
+          theme='column'
           min={1}
           value={siteSettings.SearchDownstreamMaxPage}
-          onChange={(e) =>
+          onChange={(v) =>
             setSiteSettings((prev) => ({
               ...prev,
-              SearchDownstreamMaxPage: Number(e.target.value),
+              SearchDownstreamMaxPage: Number(v) || 1,
             }))
           }
-          className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+          className='w-full'
         />
       </div>
 
@@ -5353,17 +5141,17 @@ const SiteConfigComponent = ({
         <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
           站点接口缓存时间（秒）
         </label>
-        <input
-          type='number'
+        <InputNumber
+          theme='column'
           min={1}
           value={siteSettings.SiteInterfaceCacheTime}
-          onChange={(e) =>
+          onChange={(v) =>
             setSiteSettings((prev) => ({
               ...prev,
-              SiteInterfaceCacheTime: Number(e.target.value),
+              SiteInterfaceCacheTime: Number(v) || 1,
             }))
           }
-          className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+          className='w-full'
         />
       </div>
 
@@ -5420,17 +5208,12 @@ const SiteConfigComponent = ({
           <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
             背景图片地址
           </label>
-          <input
-            type='text'
+          <Input
             placeholder='例如: /background.png 或 https://example.com/bg.jpg'
             value={siteSettings.LoginBackground}
-            onChange={(e) =>
-              setSiteSettings((prev) => ({
-                ...prev,
-                LoginBackground: e.target.value,
-              }))
+            onChange={(v) =>
+              setSiteSettings((prev) => ({ ...prev, LoginBackground: v }))
             }
-            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400'
           />
         </div>
         {/* 背景图预览 */}
