@@ -20,8 +20,10 @@ import React, {
 } from 'react';
 
 import {
+  addRecentlyViewed,
   deleteFavorite,
   deletePlayRecord,
+  deleteRecentlyViewed,
   generateStorageKey,
   isFavorited,
   saveFavorite,
@@ -46,7 +48,7 @@ export interface VideoCardProps {
   source_names?: string[];
   progress?: number;
   year?: string;
-  from: 'playrecord' | 'favorite' | 'search' | 'douban';
+  from: 'playrecord' | 'favorite' | 'recentlyViewed' | 'search' | 'douban';
   currentEpisode?: number;
   douban_id?: number;
   onDelete?: () => void;
@@ -246,16 +248,51 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        if (from !== 'playrecord' || !actualSource || !actualId) return;
+        if (
+          (from !== 'playrecord' && from !== 'recentlyViewed') ||
+          !actualSource ||
+          !actualId
+        )
+          return;
         try {
-          await deletePlayRecord(actualSource, actualId);
+          if (from === 'recentlyViewed') {
+            await deleteRecentlyViewed(actualSource, actualId);
+          } else {
+            await deletePlayRecord(actualSource, actualId);
+          }
           onDelete?.();
         } catch (_err) {
-          throw new Error('删除播放记录失败');
+          throw new Error('删除记录失败');
         }
       },
       [from, actualSource, actualId, onDelete],
     );
+
+    // 记录一次"最近浏览"：只要点击进入播放页即记录，与是否收藏/是否已产生
+    // 播放记录无关；douban 来源没有 source/id，无法定位视频源，不记录
+    const recordRecentlyViewed = useCallback(() => {
+      if (!actualSource || !actualId) return;
+      addRecentlyViewed(actualSource, actualId, {
+        title: actualTitle,
+        source_name: source_name || '',
+        year: actualYear || '',
+        cover: actualPoster,
+        total_episodes: actualEpisodes ?? 1,
+        save_time: Date.now(),
+        search_title: actualQuery,
+      }).catch(() => {
+        // 静默失败：记录浏览不应影响正常播放跳转
+      });
+    }, [
+      actualSource,
+      actualId,
+      actualTitle,
+      source_name,
+      actualYear,
+      actualPoster,
+      actualEpisodes,
+      actualQuery,
+    ]);
 
     /**
      * 点击处理器 - 纯净版
@@ -273,6 +310,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
         }${actualSearchType ? `&stype=${actualSearchType}` : ''}${isAggregate ? '&prefer=true' : ''}${actualQuery ? `&stitle=${encodeURIComponent(actualQuery.trim())}` : ''}`;
         router.push(url);
       } else if (actualSource && actualId) {
+        recordRecentlyViewed();
         const url = `/play?source=${actualSource}&id=${actualId}&title=${encodeURIComponent(
           actualTitle,
         )}${actualYear ? `&year=${actualYear}` : ''}${
@@ -293,6 +331,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       isAggregate,
       actualQuery,
       actualSearchType,
+      recordRecentlyViewed,
     ]);
 
     // 新标签页播放处理函数
@@ -305,6 +344,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
         const url = `/play?title=${encodeURIComponent(actualTitle.trim())}${actualYear ? `&year=${actualYear}` : ''}${actualSearchType ? `&stype=${actualSearchType}` : ''}${isAggregate ? '&prefer=true' : ''}${actualQuery ? `&stitle=${encodeURIComponent(actualQuery.trim())}` : ''}`;
         window.open(url, '_blank');
       } else if (actualSource && actualId) {
+        recordRecentlyViewed();
         const url = `/play?source=${actualSource}&id=${actualId}&title=${encodeURIComponent(
           actualTitle,
         )}${actualYear ? `&year=${actualYear}` : ''}${
@@ -324,6 +364,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       isAggregate,
       actualQuery,
       actualSearchType,
+      recordRecentlyViewed,
     ]);
 
     // 检查搜索结果的收藏状态
@@ -393,6 +434,16 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
           showYear: false,
         },
         favorite: {
+          showSourceName: true,
+          showProgress: false,
+          showPlayButton: true,
+          showHeart: true,
+          showCheckCircle: false,
+          showDoubanLink: false,
+          showRating: false,
+          showYear: false,
+        },
+        recentlyViewed: {
           showSourceName: true,
           showProgress: false,
           showPlayButton: true,

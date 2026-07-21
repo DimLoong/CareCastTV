@@ -4,8 +4,17 @@ import { AdminConfig } from './admin.types';
 import { KvrocksStorage } from './kvrocks.db';
 import { MemoryStorage } from './memory.db';
 import { RedisStorage } from './redis.db';
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  RecentlyViewed,
+  SkipConfig,
+} from './types';
 import { UpstashRedisStorage } from './upstash.db';
+
+// 最近浏览最多保留的记录数：超出时淘汰 save_time 最旧的记录
+const RECENTLY_VIEWED_LIMIT = 200;
 
 // storage type 常量: 'localstorage' | 'redis' | 'upstash'，默认 'localstorage'
 const STORAGE_TYPE =
@@ -132,6 +141,52 @@ export class DbManager {
   ): Promise<boolean> {
     const favorite = await this.getFavorite(userName, source, id);
     return favorite !== null;
+  }
+
+  // 最近浏览相关方法
+  async getRecentlyViewed(
+    userName: string,
+    source: string,
+    id: string,
+  ): Promise<RecentlyViewed | null> {
+    const key = generateStorageKey(source, id);
+    return this.storage.getRecentlyViewed(userName, key);
+  }
+
+  async saveRecentlyViewed(
+    userName: string,
+    source: string,
+    id: string,
+    item: RecentlyViewed,
+  ): Promise<void> {
+    const key = generateStorageKey(source, id);
+    await this.storage.setRecentlyViewed(userName, key, item);
+
+    // 超过上限时淘汰最旧的记录，保持"最多 200 条"
+    const all = await this.storage.getAllRecentlyViewed(userName);
+    const entries = Object.entries(all);
+    if (entries.length > RECENTLY_VIEWED_LIMIT) {
+      entries.sort(([, a], [, b]) => a.save_time - b.save_time);
+      const toRemove = entries.slice(0, entries.length - RECENTLY_VIEWED_LIMIT);
+      await Promise.all(
+        toRemove.map(([k]) => this.storage.deleteRecentlyViewed(userName, k)),
+      );
+    }
+  }
+
+  async getAllRecentlyViewed(
+    userName: string,
+  ): Promise<{ [key: string]: RecentlyViewed }> {
+    return this.storage.getAllRecentlyViewed(userName);
+  }
+
+  async deleteRecentlyViewed(
+    userName: string,
+    source: string,
+    id: string,
+  ): Promise<void> {
+    const key = generateStorageKey(source, id);
+    await this.storage.deleteRecentlyViewed(userName, key);
   }
 
   // ---------- 用户相关 ----------

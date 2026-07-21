@@ -54,6 +54,19 @@ export interface Favorite {
   origin?: 'vod' | 'live';
 }
 
+// ---- 最近浏览类型 ----
+// 只要点击进入过播放页就会记录一条，与是否收藏/是否已产生播放进度无关；
+// 最多保留 200 条，超出时淘汰 save_time 最旧的记录（见 addRecentlyViewed）
+export interface RecentlyViewed {
+  title: string;
+  source_name: string;
+  year: string;
+  cover: string;
+  total_episodes: number;
+  save_time: number; // 最近一次浏览时间
+  search_title?: string;
+}
+
 // ---- 缓存数据结构 ----
 interface CacheData<T> {
   data: T;
@@ -64,6 +77,7 @@ interface CacheData<T> {
 interface UserCacheStore {
   playRecords?: CacheData<Record<string, PlayRecord>>;
   favorites?: CacheData<Record<string, Favorite>>;
+  recentlyViewed?: CacheData<Record<string, RecentlyViewed>>;
   searchHistory?: CacheData<string[]>;
   skipConfigs?: CacheData<Record<string, SkipConfig>>;
 }
@@ -71,7 +85,10 @@ interface UserCacheStore {
 // ---- 常量 ----
 const PLAY_RECORDS_KEY = 'carecasttv_play_records';
 const FAVORITES_KEY = 'carecasttv_favorites';
+const RECENTLY_VIEWED_KEY = 'carecasttv_recently_viewed';
 const SEARCH_HISTORY_KEY = 'carecasttv_search_history';
+// 最近浏览最多保留条数：超出时淘汰 save_time 最旧的记录
+const RECENTLY_VIEWED_LIMIT = 200;
 
 // 缓存相关常量
 const CACHE_PREFIX = 'carecasttv_cache_';
@@ -188,6 +205,14 @@ class HybridCacheManager {
     if (cache.favorites && now - cache.favorites.timestamp > maxAge) {
       delete cache.favorites;
     }
+
+    // 清理过期的最近浏览缓存
+    if (
+      cache.recentlyViewed &&
+      now - cache.recentlyViewed.timestamp > maxAge
+    ) {
+      delete cache.recentlyViewed;
+    }
   }
 
   /**
@@ -279,6 +304,35 @@ class HybridCacheManager {
 
     const userCache = this.getUserCache(username);
     userCache.favorites = this.createCacheData(data);
+    this.saveUserCache(username, userCache);
+  }
+
+  /**
+   * 获取缓存的最近浏览
+   */
+  getCachedRecentlyViewed(): Record<string, RecentlyViewed> | null {
+    const username = this.getCurrentUsername();
+    if (!username) return null;
+
+    const userCache = this.getUserCache(username);
+    const cached = userCache.recentlyViewed;
+
+    if (cached && this.isCacheValid(cached)) {
+      return cached.data;
+    }
+
+    return null;
+  }
+
+  /**
+   * 缓存最近浏览
+   */
+  cacheRecentlyViewed(data: Record<string, RecentlyViewed>): void {
+    const username = this.getCurrentUsername();
+    if (!username) return;
+
+    const userCache = this.getUserCache(username);
+    userCache.recentlyViewed = this.createCacheData(data);
     this.saveUserCache(username, userCache);
   }
 
@@ -403,7 +457,7 @@ const cacheManager = HybridCacheManager.getInstance();
  * 立即从数据库刷新对应类型的缓存以保持数据一致性
  */
 async function handleDatabaseOperationFailure(
-  dataType: 'playRecords' | 'favorites' | 'searchHistory',
+  dataType: 'playRecords' | 'favorites' | 'recentlyViewed' | 'searchHistory',
   error: any,
 ): Promise<void> {
   console.error(`数据库操作失败 (${dataType}):`, error);
@@ -425,6 +479,13 @@ async function handleDatabaseOperationFailure(
           await fetchFromApi<Record<string, Favorite>>(`/api/favorites`);
         cacheManager.cacheFavorites(freshData);
         eventName = 'favoritesUpdated';
+        break;
+      case 'recentlyViewed':
+        freshData = await fetchFromApi<Record<string, RecentlyViewed>>(
+          `/api/recentlyviewed`,
+        );
+        cacheManager.cacheRecentlyViewed(freshData);
+        eventName = 'recentlyViewedUpdated';
         break;
       case 'searchHistory':
         freshData = await fetchFromApi<string[]>(`/api/searchhistory`);
@@ -679,6 +740,18 @@ export async function deletePlayRecord(
     console.error('删除播放记录失败:', err);
     triggerGlobalError('删除播放记录失败');
     throw err;
+  }
+}
+
+/**
+ * 批量删除播放记录（多选删除）。为避免 localStorage 并发读改写的竞态，
+ * 内部按顺序逐条删除，而不是并发触发多次 deletePlayRecord。
+ */
+export async function deletePlayRecordsBatch(
+  keys: Array<{ source: string; id: string }>,
+): Promise<void> {
+  for (const { source, id } of keys) {
+    await deletePlayRecord(source, id);
   }
 }
 
@@ -1092,6 +1165,18 @@ export async function deleteFavorite(
 }
 
 /**
+ * 批量删除收藏（多选删除）。为避免 localStorage 并发读改写的竞态，
+ * 内部按顺序逐条删除，而不是并发触发多次 deleteFavorite。
+ */
+export async function deleteFavoritesBatch(
+  keys: Array<{ source: string; id: string }>,
+): Promise<void> {
+  for (const { source, id } of keys) {
+    await deleteFavorite(source, id);
+  }
+}
+
+/**
  * 判断是否已收藏。
  * 数据库存储模式下使用混合缓存策略：优先返回缓存数据，后台异步同步最新数据。
  */
@@ -1228,6 +1313,232 @@ export async function clearAllFavorites(): Promise<void> {
   );
 }
 
+// ---------------- 最近浏览相关 API ----------------
+
+/** 淘汰超出上限的最旧记录（原地修改传入对象并返回） */
+function evictOldestRecentlyViewed(
+  data: Record<string, RecentlyViewed>,
+): Record<string, RecentlyViewed> {
+  const entries = Object.entries(data);
+  if (entries.length <= RECENTLY_VIEWED_LIMIT) return data;
+  entries.sort(([, a], [, b]) => a.save_time - b.save_time);
+  const toRemove = entries.slice(0, entries.length - RECENTLY_VIEWED_LIMIT);
+  toRemove.forEach(([key]) => delete data[key]);
+  return data;
+}
+
+/**
+ * 获取全部最近浏览。
+ * 数据库存储模式下使用混合缓存策略：优先返回缓存数据，后台异步同步最新数据。
+ */
+export async function getAllRecentlyViewed(): Promise<
+  Record<string, RecentlyViewed>
+> {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  if (STORAGE_TYPE !== 'localstorage') {
+    const cachedData = cacheManager.getCachedRecentlyViewed();
+
+    if (cachedData) {
+      fetchFromApi<Record<string, RecentlyViewed>>(`/api/recentlyviewed`)
+        .then((freshData) => {
+          if (JSON.stringify(cachedData) !== JSON.stringify(freshData)) {
+            cacheManager.cacheRecentlyViewed(freshData);
+            window.dispatchEvent(
+              new CustomEvent('recentlyViewedUpdated', {
+                detail: freshData,
+              }),
+            );
+          }
+        })
+        .catch((err) => {
+          console.warn('后台同步最近浏览失败:', err);
+          triggerGlobalError('后台同步最近浏览失败');
+        });
+
+      return cachedData;
+    } else {
+      try {
+        const freshData = await fetchFromApi<Record<string, RecentlyViewed>>(
+          `/api/recentlyviewed`,
+        );
+        cacheManager.cacheRecentlyViewed(freshData);
+        return freshData;
+      } catch (err) {
+        console.error('获取最近浏览失败:', err);
+        triggerGlobalError('获取最近浏览失败');
+        return {};
+      }
+    }
+  }
+
+  // localStorage 模式
+  try {
+    const raw = localStorage.getItem(RECENTLY_VIEWED_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, RecentlyViewed>;
+  } catch (err) {
+    console.error('读取最近浏览失败:', err);
+    triggerGlobalError('读取最近浏览失败');
+    return {};
+  }
+}
+
+/**
+ * 记录一次浏览（点击进入播放页即调用）。
+ * 与播放记录/收藏无关，独立维护，最多保留 200 条，超出时淘汰最旧记录。
+ */
+export async function addRecentlyViewed(
+  source: string,
+  id: string,
+  item: RecentlyViewed,
+): Promise<void> {
+  const key = generateStorageKey(source, id);
+
+  if (STORAGE_TYPE !== 'localstorage') {
+    const cached = cacheManager.getCachedRecentlyViewed() || {};
+    cached[key] = item;
+    evictOldestRecentlyViewed(cached);
+    cacheManager.cacheRecentlyViewed(cached);
+
+    window.dispatchEvent(
+      new CustomEvent('recentlyViewedUpdated', {
+        detail: cached,
+      }),
+    );
+
+    try {
+      await fetchWithAuth('/api/recentlyviewed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, item }),
+      });
+    } catch (err) {
+      // 记录最近浏览是静默的后台行为，失败不应打断用户操作，仅刷新缓存
+      await handleDatabaseOperationFailure('recentlyViewed', err);
+    }
+    return;
+  }
+
+  if (typeof window === 'undefined') return;
+
+  try {
+    const all = await getAllRecentlyViewed();
+    all[key] = item;
+    evictOldestRecentlyViewed(all);
+    localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(all));
+    window.dispatchEvent(
+      new CustomEvent('recentlyViewedUpdated', {
+        detail: all,
+      }),
+    );
+  } catch (err) {
+    console.error('记录最近浏览失败:', err);
+  }
+}
+
+/**
+ * 删除单条最近浏览记录。
+ * 数据库存储模式下使用乐观更新：先更新缓存，再异步同步到数据库。
+ */
+export async function deleteRecentlyViewed(
+  source: string,
+  id: string,
+): Promise<void> {
+  const key = generateStorageKey(source, id);
+
+  if (STORAGE_TYPE !== 'localstorage') {
+    const cached = cacheManager.getCachedRecentlyViewed() || {};
+    delete cached[key];
+    cacheManager.cacheRecentlyViewed(cached);
+
+    window.dispatchEvent(
+      new CustomEvent('recentlyViewedUpdated', {
+        detail: cached,
+      }),
+    );
+
+    try {
+      await fetchWithAuth(
+        `/api/recentlyviewed?key=${encodeURIComponent(key)}`,
+        { method: 'DELETE' },
+      );
+    } catch (err) {
+      await handleDatabaseOperationFailure('recentlyViewed', err);
+      triggerGlobalError('删除最近浏览失败');
+      throw err;
+    }
+    return;
+  }
+
+  if (typeof window === 'undefined') return;
+
+  try {
+    const all = await getAllRecentlyViewed();
+    delete all[key];
+    localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(all));
+    window.dispatchEvent(
+      new CustomEvent('recentlyViewedUpdated', {
+        detail: all,
+      }),
+    );
+  } catch (err) {
+    console.error('删除最近浏览失败:', err);
+    triggerGlobalError('删除最近浏览失败');
+    throw err;
+  }
+}
+
+/**
+ * 批量删除最近浏览记录（多选删除）。为避免 localStorage 并发读改写的竞态，
+ * 内部按顺序逐条删除，而不是并发触发多次 deleteRecentlyViewed。
+ */
+export async function deleteRecentlyViewedBatch(
+  keys: Array<{ source: string; id: string }>,
+): Promise<void> {
+  for (const { source, id } of keys) {
+    await deleteRecentlyViewed(source, id);
+  }
+}
+
+/**
+ * 清空全部最近浏览
+ * 数据库存储模式下使用乐观更新：先更新缓存，再异步同步到数据库。
+ */
+export async function clearAllRecentlyViewed(): Promise<void> {
+  if (STORAGE_TYPE !== 'localstorage') {
+    cacheManager.cacheRecentlyViewed({});
+
+    window.dispatchEvent(
+      new CustomEvent('recentlyViewedUpdated', {
+        detail: {},
+      }),
+    );
+
+    try {
+      await fetchWithAuth(`/api/recentlyviewed`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (err) {
+      await handleDatabaseOperationFailure('recentlyViewed', err);
+      triggerGlobalError('清空最近浏览失败');
+      throw err;
+    }
+    return;
+  }
+
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(RECENTLY_VIEWED_KEY);
+  window.dispatchEvent(
+    new CustomEvent('recentlyViewedUpdated', {
+      detail: {},
+    }),
+  );
+}
+
 // ---------------- 混合缓存辅助函数 ----------------
 
 /**
@@ -1249,10 +1560,11 @@ export async function refreshAllCache(): Promise<void> {
 
   try {
     // 并行刷新所有数据
-    const [playRecords, favorites, searchHistory, skipConfigs] =
+    const [playRecords, favorites, recentlyViewed, searchHistory, skipConfigs] =
       await Promise.allSettled([
         fetchFromApi<Record<string, PlayRecord>>(`/api/playrecords`),
         fetchFromApi<Record<string, Favorite>>(`/api/favorites`),
+        fetchFromApi<Record<string, RecentlyViewed>>(`/api/recentlyviewed`),
         fetchFromApi<string[]>(`/api/searchhistory`),
         fetchFromApi<Record<string, SkipConfig>>(`/api/skipconfigs`),
       ]);
@@ -1271,6 +1583,15 @@ export async function refreshAllCache(): Promise<void> {
       window.dispatchEvent(
         new CustomEvent('favoritesUpdated', {
           detail: favorites.value,
+        }),
+      );
+    }
+
+    if (recentlyViewed.status === 'fulfilled') {
+      cacheManager.cacheRecentlyViewed(recentlyViewed.value);
+      window.dispatchEvent(
+        new CustomEvent('recentlyViewedUpdated', {
+          detail: recentlyViewed.value,
         }),
       );
     }
@@ -1305,6 +1626,7 @@ export async function refreshAllCache(): Promise<void> {
 export function getCacheStatus(): {
   hasPlayRecords: boolean;
   hasFavorites: boolean;
+  hasRecentlyViewed: boolean;
   hasSearchHistory: boolean;
   hasSkipConfigs: boolean;
   username: string | null;
@@ -1313,6 +1635,7 @@ export function getCacheStatus(): {
     return {
       hasPlayRecords: false,
       hasFavorites: false,
+      hasRecentlyViewed: false,
       hasSearchHistory: false,
       hasSkipConfigs: false,
       username: null,
@@ -1323,6 +1646,7 @@ export function getCacheStatus(): {
   return {
     hasPlayRecords: !!cacheManager.getCachedPlayRecords(),
     hasFavorites: !!cacheManager.getCachedFavorites(),
+    hasRecentlyViewed: !!cacheManager.getCachedRecentlyViewed(),
     hasSearchHistory: !!cacheManager.getCachedSearchHistory(),
     hasSkipConfigs: !!cacheManager.getCachedSkipConfigs(),
     username: authInfo?.username || null,
@@ -1334,6 +1658,7 @@ export function getCacheStatus(): {
 export type CacheUpdateEvent =
   | 'playRecordsUpdated'
   | 'favoritesUpdated'
+  | 'recentlyViewedUpdated'
   | 'searchHistoryUpdated'
   | 'skipConfigsUpdated';
 
@@ -1379,6 +1704,7 @@ export async function preloadUserData(): Promise<void> {
   if (
     status.hasPlayRecords &&
     status.hasFavorites &&
+    status.hasRecentlyViewed &&
     status.hasSearchHistory &&
     status.hasSkipConfigs
   ) {

@@ -352,3 +352,43 @@ admin/page.tsx 由 9520 行瘦身到约 6100 行。
 - [ ] M3：播放列表支持"从第 x 集到第 y 集"的区间播放
 - [ ] M3：TV 遥控器方向键焦点管理专项优化（现依赖浏览器默认焦点行为 + autoFocus）
 - [ ] 视觉：logo/favicon/manifest 图标仍是 DecoTV 素材，需替换为 CareCastTV 设计
+
+## 2026-07-21 — M4：首页"最近浏览" + 三个 tab 多选删除 + 防烧屏文字轨迹动画
+
+### 1. 新增"最近浏览"：完整数据层 + 首页第三个 tab
+
+只要点击卡片进入播放页，就会在浏览器/数据库中记一条"最近浏览"记录（与是否收藏、是否已产生播放进度无关），最多保留 200 条，超出时淘汰 `save_time` 最旧的记录。这是一个全新的数据实体，参照现有"收藏"实体的实现模式，贯穿了整条存储链路：
+
+- **`lib/types.ts`**：新增 `RecentlyViewed` 类型 + `IStorage` 接口新增 `getRecentlyViewed`/`setRecentlyViewed`/`getAllRecentlyViewed`/`deleteRecentlyViewed`
+- **四个存储后端全部实现**：`memory.db.ts`（本地/无数据库模式）、`redis-base.db.ts`（Redis 与 Kvrocks 共用的抽象基类，键格式 `u:{user}:rv:{key}`）、`upstash.db.ts`；`deleteUser`/`clearAllData` 同步补充最近浏览的清理
+- **`lib/db.ts`**：`DbManager` 新增对应方法；`saveRecentlyViewed` 内置 200 条上限淘汰逻辑（写入后若超限，按 `save_time` 升序删除多出的最旧记录）
+- **`app/api/recentlyviewed/route.ts`**（新增）：GET（全部/单条）、POST（写入）、DELETE（单条 `?key=` / 批量 `?keys=a,b,c` 多选删除 / 不带参数清空全部），结构完全比照 `/api/favorites`
+- **`lib/db.client.ts`**：`getAllRecentlyViewed`/`addRecentlyViewed`/`deleteRecentlyViewed`/`deleteRecentlyViewedBatch`/`clearAllRecentlyViewed`，沿用现有的"本地模式直连 localStorage / 数据库模式乐观更新+混合缓存"双模式模式；`HybridCacheManager` 新增 `recentlyViewed` 缓存字段与过期清理；`CacheUpdateEvent` 新增 `recentlyViewedUpdated`；`refreshAllCache`/`getCacheStatus`/`preloadUserData` 同步纳入
+- 同时为收藏、播放记录补上了此前缺失的 `deleteFavoritesBatch`/`deletePlayRecordsBatch`（批量删除内部改为顺序 await 逐条删除，避免并发读改写 localStorage 造成的竞态丢失更新）
+- **`components/VideoCard.tsx`**：`from` 联合类型新增 `'recentlyViewed'`；点击卡片跳转播放前（`handleClick`/`handlePlayInNewTab`）调用 `addRecentlyViewed`，仅在存在明确的 `source`+`id` 时记录（豆瓣发现类卡片没有 source/id，跳过）
+
+### 2. 首页三个 tab 全部支持多选删除 + 全部清空
+
+- **新增共享组件**：`hooks/useMultiSelect.ts`（选中状态管理：进入/退出多选、单选切换、全选/取消全选）、`components/SelectableCard.tsx`（多选模式下叠加透明遮罩拦截点击、左上角圆形勾选标记）、`components/SelectionToolbar.tsx`（非多选模式显示"多选"+"清空"；多选模式显示"全选/取消全选"+"删除选中 (n)"+"取消"）
+- **`app/page.tsx`**：`CapsuleSwitch` 从两个 tab（继续观看/收藏夹）扩展为三个（继续观看/收藏夹/最近浏览）；收藏夹与最近浏览共用同一套"选片辅助卡片"渲染逻辑（抽了个 `PickerItem`/`itemsFromMap` 复用），各自独立的 `useMultiSelect` 实例
+- **`components/ContinueWatching.tsx`**：同样接入 `SelectionToolbar` + `SelectableCard` + `useMultiSelect`，删除选中调用新增的 `deletePlayRecordsBatch`
+
+### 3. 防烧屏遮罩文字改为缓慢轨迹漂移
+
+- `globals.css` 新增 `.screensaver-drift-text` + `@keyframes screensaver-drift`：文字沿一条围绕屏幕中心的八点闭合轨迹（近似八边形路径）持续移动，整圈耗时 90 秒（`linear infinite`），人眼几乎察觉不到明显位移，只感觉文字在缓慢挪动，避免长期停留同一像素点导致电视烧屏
+- 遮罩容器从 `flex items-center justify-center` 改为 `overflow-hidden`，文字改为 `position: absolute` 由动画驱动位置
+- 尊重 `prefers-reduced-motion: reduce`：该偏好下动画关闭，文字静止居中显示
+
+### 验证
+
+- typecheck / eslint(`--max-warnings=0`) / `next build` 全部通过（新增 `/api/recentlyviewed` 路由构建成功）
+- 冒烟（PASSWORD=test123，本地模式）：`/`、`/login`、`/settings`、`/care-admin`、`/admin`、`/care`、`/play` 均 200；`GET /api/recentlyviewed` 返回 `{}`；核对生产构建产物确认"最近浏览"、"删除选中"、防烧屏提示文案均已正确打包
+
+### 后续待办
+
+- [ ] admin 页用户表/视频源表/分类表的表格外壳（非输入元素）仍是原生 `<table>`，如需彻底组件化需分别处理条件权限渲染与 dnd-kit 拖拽集成
+- [ ] M2：关怀配置迁移到服务端存储（redis/upstash 模式下多设备共享）
+- [ ] M2：老人端状态上报（当前在看什么、播放器状态），供家属远程查看
+- [ ] M3：播放列表支持"从第 x 集到第 y 集"的区间播放
+- [ ] M3：TV 遥控器方向键焦点管理专项优化（现依赖浏览器默认焦点行为 + autoFocus）
+- [ ] 视觉：logo/favicon/manifest 图标仍是 DecoTV 素材，需替换为 CareCastTV 设计

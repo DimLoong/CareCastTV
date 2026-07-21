@@ -26,6 +26,17 @@ export interface Favorite {
   origin?: 'vod' | 'live';
 }
 
+// 最近浏览数据结构（点击进入播放页即记录，与是否收藏/是否已产生播放记录无关）
+export interface RecentlyViewed {
+  source_name: string;
+  total_episodes: number; // 总集数
+  title: string;
+  year: string;
+  cover: string;
+  save_time: number; // 最近一次浏览时间（时间戳），用于排序与超出上限时淘汰最旧记录
+  search_title: string; // 搜索时使用的标题
+}
+
 // 存储接口
 export interface IStorage {
   // 播放记录相关
@@ -43,6 +54,21 @@ export interface IStorage {
   setFavorite(userName: string, key: string, favorite: Favorite): Promise<void>;
   getAllFavorites(userName: string): Promise<{ [key: string]: Favorite }>;
   deleteFavorite(userName: string, key: string): Promise<void>;
+
+  // 最近浏览相关
+  getRecentlyViewed(
+    userName: string,
+    key: string,
+  ): Promise<RecentlyViewed | null>;
+  setRecentlyViewed(
+    userName: string,
+    key: string,
+    item: RecentlyViewed,
+  ): Promise<void>;
+  getAllRecentlyViewed(
+    userName: string,
+  ): Promise<{ [key: string]: RecentlyViewed }>;
+  deleteRecentlyViewed(userName: string, key: string): Promise<void>;
 
   // 用户相关
   registerUser(userName: string, password: string): Promise<void>;

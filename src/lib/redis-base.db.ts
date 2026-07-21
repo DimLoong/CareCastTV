@@ -3,7 +3,13 @@
 import { createClient, RedisClientType } from 'redis';
 
 import { AdminConfig } from './admin.types';
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  RecentlyViewed,
+  SkipConfig,
+} from './types';
 
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
@@ -259,6 +265,56 @@ export abstract class BaseRedisStorage implements IStorage {
     await this.withRetry(() => this.client.del(this.favKey(userName, key)));
   }
 
+  // ---------- 最近浏览 ----------
+  private rvKey(user: string, key: string) {
+    return `u:${user}:rv:${key}`;
+  }
+
+  async getRecentlyViewed(
+    userName: string,
+    key: string,
+  ): Promise<RecentlyViewed | null> {
+    const val = await this.withRetry(() =>
+      this.client.get(this.rvKey(userName, key)),
+    );
+    return val ? (JSON.parse(val) as RecentlyViewed) : null;
+  }
+
+  async setRecentlyViewed(
+    userName: string,
+    key: string,
+    item: RecentlyViewed,
+  ): Promise<void> {
+    await this.withRetry(() =>
+      this.client.set(this.rvKey(userName, key), JSON.stringify(item)),
+    );
+  }
+
+  async getAllRecentlyViewed(
+    userName: string,
+  ): Promise<Record<string, RecentlyViewed>> {
+    const pattern = `u:${userName}:rv:*`;
+    const keys: string[] = await this.withRetry(() =>
+      this.client.keys(pattern),
+    );
+    if (keys.length === 0) return {};
+    const values = await this.withRetry(() => this.client.mGet(keys));
+    const result: Record<string, RecentlyViewed> = {};
+    keys.forEach((fullKey: string, idx: number) => {
+      const raw = values[idx];
+      if (raw) {
+        const item = JSON.parse(raw) as RecentlyViewed;
+        const keyPart = ensureString(fullKey.replace(`u:${userName}:rv:`, ''));
+        result[keyPart] = item;
+      }
+    });
+    return result;
+  }
+
+  async deleteRecentlyViewed(userName: string, key: string): Promise<void> {
+    await this.withRetry(() => this.client.del(this.rvKey(userName, key)));
+  }
+
   // ---------- 用户注册 / 登录 ----------
   private userPwdKey(user: string) {
     return `u:${user}:pwd`;
@@ -330,6 +386,15 @@ export abstract class BaseRedisStorage implements IStorage {
     );
     if (skipConfigKeys.length > 0) {
       await this.withRetry(() => this.client.del(skipConfigKeys));
+    }
+
+    // 删除最近浏览
+    const recentlyViewedPattern = `u:${userName}:rv:*`;
+    const recentlyViewedKeys = await this.withRetry(() =>
+      this.client.keys(recentlyViewedPattern),
+    );
+    if (recentlyViewedKeys.length > 0) {
+      await this.withRetry(() => this.client.del(recentlyViewedKeys));
     }
   }
 

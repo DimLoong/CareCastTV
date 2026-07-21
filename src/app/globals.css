@@ -1228,3 +1228,56 @@ div[data-media-provider] video {
     background-position: 100% 50%;
   }
 }
+
+/* ===========================================================================
+   防烧屏遮罩：文字沿一条缓慢的闭合轨迹持续漂移（类似经典 DVD 屏保），
+   避免长时间静止在同一像素点导致电视烧屏。整圈耗时较长（90s）以保证
+   人眼几乎察觉不到明显的"跑动"，只感觉文字在缓慢挪动。
+   =========================================================================== */
+.screensaver-drift-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 初始状态与 0% 关键帧保持一致，避免动画开始前的一帧跳变 */
+  transform: translate(-50%, -50%) translate(-32vw, -24vh);
+  animation: screensaver-drift 90s linear infinite;
+  will-change: transform;
+}
+
+@keyframes screensaver-drift {
+  0% {
+    transform: translate(-50%, -50%) translate(-32vw, -24vh);
+  }
+  12.5% {
+    transform: translate(-50%, -50%) translate(0vw, -30vh);
+  }
+  25% {
+    transform: translate(-50%, -50%) translate(32vw, -24vh);
+  }
+  37.5% {
+    transform: translate(-50%, -50%) translate(36vw, 0vh);
+  }
+  50% {
+    transform: translate(-50%, -50%) translate(32vw, 24vh);
+  }
+  62.5% {
+    transform: translate(-50%, -50%) translate(0vw, 30vh);
+  }
+  75% {
+    transform: translate(-50%, -50%) translate(-32vw, 24vh);
+  }
+  87.5% {
+    transform: translate(-50%, -50%) translate(-36vw, 0vh);
+  }
+  100% {
+    transform: translate(-50%, -50%) translate(-32vw, -24vh);
+  }
+}
+
+/* 用户可能设置了"减弱动态效果"偏好，此时静止显示在中心即可 */
+@media (prefers-reduced-motion: reduce) {
+  .screensaver-drift-text {
+    animation: none;
+    transform: translate(-50%, -50%);
+  }
+}

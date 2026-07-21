@@ -2256,10 +2256,11 @@ function PlayPageClient() {
           typeof document !== 'undefined' &&
           createPortal(
             <div
-              className='fixed inset-0 flex items-center justify-center bg-black'
+              className='fixed inset-0 bg-black overflow-hidden'
               style={{ zIndex: 2147483647 }}
             >
-              <p className='text-gray-700 text-sm tracking-widest'>
+              {/* 文字沿缓慢轨迹持续移动，避免长时间停留同一位置导致电视烧屏 */}
+              <p className='screensaver-drift-text text-gray-700 text-sm tracking-widest whitespace-nowrap'>
                 长时间无操作，按任意按键解锁
               </p>
             </div>,

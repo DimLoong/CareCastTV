@@ -6,11 +6,15 @@ import { useEffect, useState } from 'react';
 import type { PlayRecord } from '@/lib/db.client';
 import {
   clearAllPlayRecords,
+  deletePlayRecordsBatch,
   getAllPlayRecords,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
 
 import ScrollableRow from '@/components/ScrollableRow';
+import SelectableCard from '@/components/SelectableCard';
+import SelectionToolbar from '@/components/SelectionToolbar';
 import VideoCard from '@/components/VideoCard';
 
 interface ContinueWatchingProps {
@@ -22,8 +26,10 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
     (PlayRecord & { key: string })[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const CONTINUE_WATCHING_LIMIT = 24;
   const visiblePlayRecords = playRecords.slice(0, CONTINUE_WATCHING_LIMIT);
+  const select = useMultiSelect(visiblePlayRecords.map((r) => r.key));
 
   // 处理播放记录数据更新的函数
   const updatePlayRecords = (allRecords: Record<string, PlayRecord>) => {
@@ -87,24 +93,36 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
     return { source, id };
   };
 
+  const handleDeleteSelected = async () => {
+    setDeleting(true);
+    try {
+      await deletePlayRecordsBatch(
+        Array.from(select.selected).map((key) => parseKey(key)),
+      );
+      select.exit();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <section className={`mb-8 ${className || ''}`}>
-      <div className='mb-4 flex items-center justify-between'>
-        <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
-          继续观看
-        </h2>
-        {!loading && playRecords.length > 0 && (
-          <button
-            className='text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            onClick={async () => {
-              await clearAllPlayRecords();
-              setPlayRecords([]);
-            }}
-          >
-            清空
-          </button>
-        )}
-      </div>
+      <SelectionToolbar
+        title='继续观看'
+        itemCount={!loading ? playRecords.length : 0}
+        selectionMode={select.selectionMode}
+        selectedCount={select.selected.size}
+        allSelected={select.allSelected}
+        deleting={deleting}
+        onEnterSelection={select.enter}
+        onExitSelection={select.exit}
+        onToggleSelectAll={select.toggleSelectAll}
+        onDeleteSelected={handleDeleteSelected}
+        onClearAll={async () => {
+          await clearAllPlayRecords();
+          setPlayRecords([]);
+        }}
+      />
       <ScrollableRow>
         {loading
           ? // 加载状态显示灰色占位数据
@@ -125,25 +143,31 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
                   key={record.key}
                   className='min-w-24 w-24 sm:min-w-45 sm:w-44'
                 >
-                  <VideoCard
-                    id={id}
-                    title={record.title}
-                    poster={record.cover}
-                    year={record.year}
-                    source={source}
-                    source_name={record.source_name}
-                    progress={getProgress(record)}
-                    episodes={record.total_episodes}
-                    currentEpisode={record.index}
-                    query={record.search_title}
-                    from='playrecord'
-                    onDelete={() =>
-                      setPlayRecords((prev) =>
-                        prev.filter((r) => r.key !== record.key),
-                      )
-                    }
-                    type={record.total_episodes > 1 ? 'tv' : ''}
-                  />
+                  <SelectableCard
+                    selectionMode={select.selectionMode}
+                    selected={select.selected.has(record.key)}
+                    onToggle={() => select.toggle(record.key)}
+                  >
+                    <VideoCard
+                      id={id}
+                      title={record.title}
+                      poster={record.cover}
+                      year={record.year}
+                      source={source}
+                      source_name={record.source_name}
+                      progress={getProgress(record)}
+                      episodes={record.total_episodes}
+                      currentEpisode={record.index}
+                      query={record.search_title}
+                      from='playrecord'
+                      onDelete={() =>
+                        setPlayRecords((prev) =>
+                          prev.filter((r) => r.key !== record.key),
+                        )
+                      }
+                      type={record.total_episodes > 1 ? 'tv' : ''}
+                    />
+                  </SelectableCard>
                 </div>
               );
             })}

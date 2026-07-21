@@ -9,12 +9,19 @@
  */
 
 import { AdminConfig } from './admin.types';
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  RecentlyViewed,
+  SkipConfig,
+} from './types';
 
 export class MemoryStorage implements IStorage {
   // 使用 Map 存储各类数据
   private playRecords: Map<string, Map<string, PlayRecord>> = new Map();
   private favorites: Map<string, Map<string, Favorite>> = new Map();
+  private recentlyViewed: Map<string, Map<string, RecentlyViewed>> = new Map();
   private users: Map<string, string> = new Map(); // username -> password hash
   private searchHistory: Map<string, string[]> = new Map();
   private adminConfig: AdminConfig | null = null;
@@ -101,6 +108,46 @@ export class MemoryStorage implements IStorage {
     }
   }
 
+  // ========== 最近浏览 ==========
+  async getRecentlyViewed(
+    userName: string,
+    key: string,
+  ): Promise<RecentlyViewed | null> {
+    const userItems = this.recentlyViewed.get(userName);
+    if (!userItems) return null;
+    return userItems.get(key) || null;
+  }
+
+  async setRecentlyViewed(
+    userName: string,
+    key: string,
+    item: RecentlyViewed,
+  ): Promise<void> {
+    if (!this.recentlyViewed.has(userName)) {
+      this.recentlyViewed.set(userName, new Map());
+    }
+    this.recentlyViewed.get(userName)!.set(key, item);
+  }
+
+  async getAllRecentlyViewed(
+    userName: string,
+  ): Promise<{ [key: string]: RecentlyViewed }> {
+    const userItems = this.recentlyViewed.get(userName);
+    if (!userItems) return {};
+    const result: { [key: string]: RecentlyViewed } = {};
+    userItems.forEach((item, key) => {
+      result[key] = item;
+    });
+    return result;
+  }
+
+  async deleteRecentlyViewed(userName: string, key: string): Promise<void> {
+    const userItems = this.recentlyViewed.get(userName);
+    if (userItems) {
+      userItems.delete(key);
+    }
+  }
+
   // ========== 用户 ==========
   async registerUser(userName: string, password: string): Promise<void> {
     if (this.users.has(userName)) {
@@ -130,6 +177,7 @@ export class MemoryStorage implements IStorage {
     this.users.delete(userName);
     this.playRecords.delete(userName);
     this.favorites.delete(userName);
+    this.recentlyViewed.delete(userName);
     this.searchHistory.delete(userName);
     this.skipConfigs.delete(userName);
   }
@@ -233,6 +281,7 @@ export class MemoryStorage implements IStorage {
   async clearAllData(): Promise<void> {
     this.playRecords.clear();
     this.favorites.clear();
+    this.recentlyViewed.clear();
     this.users.clear();
     this.searchHistory.clear();
     this.adminConfig = null;
