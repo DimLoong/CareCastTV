@@ -28,6 +28,7 @@ import {
   Tv,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { Button, Input, InputNumber, RadioGroup, Switch } from 'tdesign-react';
 
 import {
   addPlaylistItem,
@@ -40,6 +41,7 @@ import {
   getCareRemoteState,
   movePlaylistItem,
   removePlaylistItem,
+  resetPlaybackSession,
   saveCareConfig,
   saveCarePlaylist,
   setCareUnlocked,
@@ -114,6 +116,11 @@ export default function CareAdminPage() {
   const updateRemote = (patch: Partial<CareConfig['remote']>) => {
     if (!config) return;
     saveCareConfig({ ...config, remote: { ...config.remote, ...patch } });
+  };
+
+  const updateAutoStop = (patch: Partial<CareConfig['autoStop']>) => {
+    if (!config) return;
+    saveCareConfig({ ...config, autoStop: { ...config.autoStop, ...patch } });
   };
 
   const doSearch = async () => {
@@ -192,8 +199,9 @@ export default function CareAdminPage() {
   const enterCareMode = () => {
     if (!config) return;
     saveCareConfig({ ...config, careModeEnabled: true });
-    // 清除解锁标记，立即进入老人视图
+    // 清除解锁标记，立即进入老人视图；重置连续播放计时，开始全新的一次观看会话
     setCareUnlocked(false);
+    resetPlaybackSession();
     window.location.href = '/care';
   };
 
@@ -229,13 +237,14 @@ export default function CareAdminPage() {
               为老人配置自动续播的播放列表与播放策略
             </p>
           </div>
-          <button
+          <Button
             onClick={enterCareMode}
-            className='brand-btn flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold'
+            size='large'
+            icon={<Tv className='w-5 h-5' />}
+            className='brand-btn !rounded-xl font-semibold'
           >
-            <Tv className='w-5 h-5' />
             进入老人视图
-          </button>
+          </Button>
         </header>
 
         {/* ------------------------- 策略设置 ------------------------- */}
@@ -252,11 +261,9 @@ export default function CareAdminPage() {
                 开启后应用将被限制在老人视图内，退出需算术验证
               </span>
             </span>
-            <input
-              type='checkbox'
-              checked={config.careModeEnabled}
-              onChange={(e) => updateConfig({ careModeEnabled: e.target.checked })}
-              className='w-5 h-5 accent-[#ff6a00]'
+            <Switch
+              value={config.careModeEnabled}
+              onChange={(v) => updateConfig({ careModeEnabled: !!v })}
             />
           </label>
 
@@ -267,20 +274,15 @@ export default function CareAdminPage() {
                 老人主页停留该时长后自动播放
               </span>
             </span>
-            <input
-              type='number'
+            <InputNumber
+              theme='column'
               min={0}
               max={600}
               value={config.countdownSeconds}
-              onChange={(e) =>
-                updateConfig({
-                  countdownSeconds: Math.max(
-                    0,
-                    parseInt(e.target.value, 10) || 0,
-                  ),
-                })
+              onChange={(v) =>
+                updateConfig({ countdownSeconds: Number(v) || 0 })
               }
-              className='w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent text-right'
+              className='w-32'
             />
           </label>
 
@@ -291,20 +293,15 @@ export default function CareAdminPage() {
                 退出验证页无操作该时长后自动回退
               </span>
             </span>
-            <input
-              type='number'
+            <InputNumber
+              theme='column'
               min={5}
               max={600}
               value={config.verifyTimeoutSeconds}
-              onChange={(e) =>
-                updateConfig({
-                  verifyTimeoutSeconds: Math.max(
-                    5,
-                    parseInt(e.target.value, 10) || 30,
-                  ),
-                })
+              onChange={(v) =>
+                updateConfig({ verifyTimeoutSeconds: Number(v) || 30 })
               }
-              className='w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent text-right'
+              className='w-32'
             />
           </label>
 
@@ -315,11 +312,9 @@ export default function CareAdminPage() {
                 一部剧播完后自动播放列表中的下一部
               </span>
             </span>
-            <input
-              type='checkbox'
-              checked={config.autoAdvance}
-              onChange={(e) => updateConfig({ autoAdvance: e.target.checked })}
-              className='w-5 h-5 accent-[#ff6a00]'
+            <Switch
+              value={config.autoAdvance}
+              onChange={(v) => updateConfig({ autoAdvance: !!v })}
             />
           </label>
 
@@ -330,15 +325,104 @@ export default function CareAdminPage() {
                 最后一部播完后回到第一部重新开始
               </span>
             </span>
-            <input
-              type='checkbox'
-              checked={playlist.loop}
-              onChange={(e) =>
-                saveCarePlaylist({ ...playlist, loop: e.target.checked })
-              }
-              className='w-5 h-5 accent-[#ff6a00]'
+            <Switch
+              value={playlist.loop}
+              onChange={(v) => saveCarePlaylist({ ...playlist, loop: !!v })}
             />
           </label>
+        </section>
+        )}
+
+        {/* ------------------------- 定时停止播放（护眼） ------------------------- */}
+        {activeSection === 'strategy' && (
+        <section className='rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 p-6 space-y-5'>
+          <div>
+            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+              定时停止播放（护眼）
+            </h2>
+            <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>
+              触发后播放器暂停并显示纯黑护眼提示屏，需退出关怀模式（算术验证）才能恢复
+            </p>
+          </div>
+
+          <label className='flex items-center justify-between gap-4'>
+            <span className='text-gray-700 dark:text-gray-300'>
+              启用定时停止播放
+            </span>
+            <Switch
+              value={config.autoStop.enabled}
+              onChange={(v) => updateAutoStop({ enabled: !!v })}
+            />
+          </label>
+
+          {config.autoStop.enabled && (
+            <>
+              <div>
+                <span className='block mb-2 text-sm text-gray-700 dark:text-gray-300'>
+                  停止方式
+                </span>
+                <RadioGroup
+                  theme='button'
+                  value={config.autoStop.mode}
+                  onChange={(v) =>
+                    updateAutoStop({ mode: v as 'duration' | 'dailyTime' })
+                  }
+                  options={[
+                    { label: '按连续播放时长', value: 'duration' },
+                    { label: '按每日固定时间', value: 'dailyTime' },
+                  ]}
+                />
+              </div>
+
+              {config.autoStop.mode === 'duration' ? (
+                <label className='flex items-center justify-between gap-4'>
+                  <span className='text-gray-700 dark:text-gray-300'>
+                    连续播放多久后停止（分钟）
+                    <span className='block text-xs text-gray-400'>
+                      从进入播放页开始累计，退出关怀模式会重新计时
+                    </span>
+                  </span>
+                  <InputNumber
+                    theme='column'
+                    min={5}
+                    max={1440}
+                    value={config.autoStop.maxContinuousMinutes}
+                    onChange={(v) =>
+                      updateAutoStop({ maxContinuousMinutes: Number(v) || 60 })
+                    }
+                    className='w-32'
+                  />
+                </label>
+              ) : (
+                <label className='flex items-center justify-between gap-4'>
+                  <span className='text-gray-700 dark:text-gray-300'>
+                    每天几点后停止播放
+                    <span className='block text-xs text-gray-400'>
+                      北京时间，格式 HH:mm，如 22:00
+                    </span>
+                  </span>
+                  <Input
+                    value={config.autoStop.dailyStopTime}
+                    onChange={(v) => {
+                      // 只保留数字与冒号，允许输入过程中的中间态
+                      const cleaned = String(v).replace(/[^0-9:]/g, '');
+                      updateAutoStop({ dailyStopTime: cleaned });
+                    }}
+                    onBlur={() => {
+                      // 失焦时校验格式，非法则回退默认值
+                      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(
+                        config.autoStop.dailyStopTime,
+                      )) {
+                        updateAutoStop({ dailyStopTime: '22:00' });
+                      }
+                    }}
+                    placeholder='22:00'
+                    className='w-32'
+                  />
+                </label>
+              )}
+            </>
+          )}
         </section>
         )}
 
@@ -397,8 +481,12 @@ export default function CareAdminPage() {
                       </p>
                     </div>
                     <div className='flex items-center gap-1'>
-                      <button
+                      <Button
                         title='立即试播'
+                        theme='default'
+                        variant='text'
+                        shape='square'
+                        icon={<Play className='w-4 h-4' />}
                         onClick={() => {
                           window.open(
                             buildCarePlayUrl({
@@ -411,41 +499,42 @@ export default function CareAdminPage() {
                             '_blank',
                           );
                         }}
-                        className='p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500'
-                      >
-                        <Play className='w-4 h-4' />
-                      </button>
-                      <button
+                      />
+                      <Button
                         title='设为当前播放项'
+                        theme='default'
+                        variant='text'
+                        shape='square'
+                        icon={<Tv className='w-4 h-4' />}
                         onClick={() => setPlaylistCurrentItem(item.id)}
-                        className='p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 disabled:opacity-30'
                         disabled={isCurrent}
-                      >
-                        <Tv className='w-4 h-4' />
-                      </button>
-                      <button
+                      />
+                      <Button
                         title='上移'
+                        theme='default'
+                        variant='text'
+                        shape='square'
+                        icon={<ArrowUp className='w-4 h-4' />}
                         onClick={() => movePlaylistItem(item.id, -1)}
                         disabled={idx === 0}
-                        className='p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 disabled:opacity-30'
-                      >
-                        <ArrowUp className='w-4 h-4' />
-                      </button>
-                      <button
+                      />
+                      <Button
                         title='下移'
+                        theme='default'
+                        variant='text'
+                        shape='square'
+                        icon={<ArrowDown className='w-4 h-4' />}
                         onClick={() => movePlaylistItem(item.id, 1)}
                         disabled={idx === playlist.items.length - 1}
-                        className='p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 disabled:opacity-30'
-                      >
-                        <ArrowDown className='w-4 h-4' />
-                      </button>
-                      <button
+                      />
+                      <Button
                         title='删除'
+                        theme='danger'
+                        variant='text'
+                        shape='square'
+                        icon={<Trash2 className='w-4 h-4' />}
                         onClick={() => removePlaylistItem(item.id)}
-                        className='p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500'
-                      >
-                        <Trash2 className='w-4 h-4' />
-                      </button>
+                      />
                     </div>
                   </li>
                 );
@@ -456,22 +545,20 @@ export default function CareAdminPage() {
           {/* 搜索添加 */}
           <div className='pt-2 border-t border-gray-100 dark:border-gray-800 space-y-3'>
             <div className='flex gap-2'>
-              <input
-                type='text'
+              <Input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+                onChange={(v) => setQuery(v)}
+                onEnter={doSearch}
                 placeholder='搜索剧名添加到播放列表…'
-                className='flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent'
+                className='flex-1'
               />
-              <button
+              <Button
                 onClick={doSearch}
-                disabled={searching}
-                className='flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium disabled:opacity-50 transition-opacity'
+                loading={searching}
+                icon={<Search className='w-4 h-4' />}
               >
-                <Search className='w-4 h-4' />
                 {searching ? '搜索中…' : '搜索'}
-              </button>
+              </Button>
             </div>
             {searchError && (
               <p className='text-sm text-red-500'>{searchError}</p>
@@ -501,14 +588,15 @@ export default function CareAdminPage() {
                           {r.episodes?.length || 1} 集
                         </p>
                       </div>
-                      <button
+                      <Button
                         onClick={() => addToPlaylist(r)}
                         disabled={added}
-                        className='brand-btn flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium disabled:cursor-not-allowed'
+                        size='small'
+                        icon={<Plus className='w-3.5 h-3.5' />}
+                        className={added ? '' : 'brand-btn'}
                       >
-                        <Plus className='w-3.5 h-3.5' />
                         {added ? '已添加' : '添加'}
-                      </button>
+                      </Button>
                     </li>
                   );
                 })}
@@ -531,11 +619,9 @@ export default function CareAdminPage() {
 
           <label className='flex items-center justify-between gap-4'>
             <span className='text-gray-700 dark:text-gray-300'>启用远程配置轮询</span>
-            <input
-              type='checkbox'
-              checked={config.remote.enabled}
-              onChange={(e) => updateRemote({ enabled: e.target.checked })}
-              className='w-5 h-5 accent-[#ff6a00]'
+            <Switch
+              value={config.remote.enabled}
+              onChange={(v) => updateRemote({ enabled: !!v })}
             />
           </label>
 
@@ -543,12 +629,11 @@ export default function CareAdminPage() {
             <span className='text-sm text-gray-700 dark:text-gray-300'>
               配置文件地址（raw 链接或 GitHub 文件页链接）
             </span>
-            <input
-              type='url'
+            <Input
               value={config.remote.url}
-              onChange={(e) => updateRemote({ url: e.target.value.trim() })}
+              onChange={(v) => updateRemote({ url: v.trim() })}
               placeholder='https://raw.githubusercontent.com/你的用户名/仓库/main/carecast.json'
-              className='mt-1 w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent text-sm'
+              className='mt-1'
             />
           </label>
 
@@ -557,59 +642,55 @@ export default function CareAdminPage() {
               <span className='text-sm text-gray-700 dark:text-gray-300'>
                 轮询间隔（秒，最小 10）
               </span>
-              <input
-                type='number'
+              <InputNumber
+                theme='column'
                 min={10}
                 value={config.remote.pollIntervalSeconds}
-                onChange={(e) =>
-                  updateRemote({
-                    pollIntervalSeconds: Math.max(
-                      10,
-                      parseInt(e.target.value, 10) || 60,
-                    ),
-                  })
+                onChange={(v) =>
+                  updateRemote({ pollIntervalSeconds: Number(v) || 60 })
                 }
-                className='mt-1 w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent text-sm'
+                className='mt-1 w-full'
               />
             </label>
             <label className='block'>
               <span className='text-sm text-gray-700 dark:text-gray-300'>
                 GitHub Token（私有仓库需要，可留空）
               </span>
-              <input
+              <Input
                 type='password'
                 value={config.remote.token || ''}
-                onChange={(e) =>
-                  updateRemote({ token: e.target.value.trim() || undefined })
+                onChange={(v) =>
+                  updateRemote({ token: v.trim() || undefined })
                 }
                 placeholder='ghp_…'
-                className='mt-1 w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent text-sm'
+                className='mt-1'
               />
             </label>
           </div>
 
           <div className='flex flex-wrap gap-3'>
-            <button
+            <Button
               onClick={testRemote}
-              disabled={remoteTesting || !config.remote.url}
-              className='flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium disabled:opacity-50'
+              loading={remoteTesting}
+              disabled={!config.remote.url}
+              icon={<RefreshCw className='w-4 h-4' />}
             >
-              <RefreshCw
-                className={`w-4 h-4 ${remoteTesting ? 'animate-spin' : ''}`}
-              />
               立即拉取测试
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={copyExportJson}
-              className='flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300'
+              theme='default'
+              variant='outline'
+              icon={
+                copied ? (
+                  <Download className='w-4 h-4 text-green-500' />
+                ) : (
+                  <Copy className='w-4 h-4' />
+                )
+              }
             >
-              {copied ? (
-                <Download className='w-4 h-4 text-green-500' />
-              ) : (
-                <Copy className='w-4 h-4' />
-              )}
               {copied ? '已复制' : '导出当前配置 JSON'}
-            </button>
+            </Button>
           </div>
 
           {remoteTestResult && (

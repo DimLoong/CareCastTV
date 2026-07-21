@@ -264,8 +264,45 @@ admin/page.tsx 由 9520 行瘦身到约 6100 行。
 
 - typecheck / eslint / next build 通过；冒烟 /admin 200、服务端无报错
 
+## 2026-07-21 — M3：TDesign 组件化改造 + 定时停止播放（护眼）
+
+### 目标
+
+1. 尽可能把 UI 迁移到 TDesign React 组件（暂不处理颜色，已由品牌色变量统一接管）
+2. 新功能：定时停止播放（护眼）——按连续播放时长 / 按每日固定北京时间两种模式；触发后纯黑屏 + 护眼提示 + 退出关怀模式入口；停播屏或手动暂停超过 3 分钟无操作时进一步降为近乎纯黑 + 极淡文字，防止电视烧屏
+
+### TDesign 组件化
+
+- **共享 AlertModal 去重**：`admin/page.tsx` 与 `DataMigration.tsx` 各自内联了一份几乎相同的提示/确认弹窗实现（自绘遮罩层）。抽成 `components/AlertModal.tsx`，用 TDesign `Dialog` 承载，`useAlertModal()` API 不变，两处调用方无需改动业务逻辑。顺带把 admin 页里视频源删除确认、批量操作确认、重置配置确认这三处自绘确认弹窗全部改为 `showAlert({..., onConfirm})`，删除了对应的 `confirmModal`/`showResetConfigModal` 状态和大段自绘弹窗 JSX
+- **care-admin 页**：所有 checkbox → `Switch`，number input → `InputNumber`，text/url/password input → `Input`，全部按钮 → `Button`（含播放列表行内的图标按钮，`variant='text' shape='square'`）
+- **LocalSettingsPanel**：删除了自造的 `Toggle`（开关）和 `Dropdown`（下拉）两个组件，改用 TDesign `Switch`/`Select`；密码输入框、下载管理/版本信息/恢复默认按钮均改用 TDesign `Input`/`Button`
+- **login/register/首页**：登录、注册提交按钮与首页公告弹窗按钮改用 TDesign `Button`（`loading`/`disabled` 用组件原生 prop，不再手写 spinner 文案判断）
+- **刻意保留 Tailwind 原生实现的部分**（记录理由，避免以后误以为遗漏）：
+  - `CapsuleSwitch`（首页"继续观看/收藏夹"切换）：有自定义滑动指示器动画，换成 TDesign RadioGroup 会改变交互观感而不只是配色，收益不足以抵消视觉回归风险
+  - 登录/注册页的输入框：页面本身是高度定制的玻璃拟态（backdrop-blur + 自定义 ring/阴影），TDesign Input 的默认 DOM 结构会让这类自定义视觉难以通过 className 覆盖，故只转按钮，不转输入框
+  - `care`/`care/verify`（老人视图）与新增的停播/防烧屏叠层：这些是超大触控目标的无障碍设计，字号/间距远超常规组件库尺寸体系，继续用 bespoke Tailwind
+  - `admin/page.tsx` 里各配置表单（站点配置、用户配置、分类配置等）体量巨大（原文件 6000+ 行），本轮未逐一转换，作为后续任务
+
+### 定时停止播放（护眼）
+
+- **`lib/carecast.types.ts`**：新增 `CareAutoStopConfig { enabled, mode: 'duration'|'dailyTime', maxContinuousMinutes, dailyStopTime }`，挂在 `CareConfig.autoStop` 上；远程配置 zod schema（`careRemoteFileSchema.config.autoStop`）同步支持，家属可通过 GitHub 配置文件远程下发
+- **`lib/carecast.client.ts`**：
+  - `applyRemoteConfigFile` 对 `autoStop` 做深合并（而非整体覆盖），避免远程只下发部分字段时冲掉本地其余设置
+  - 新增 `getPlaybackSessionStart()` / `resetPlaybackSession()`：用 sessionStorage 记录"本次连续观看会话"的起点，跨剧连播（play 页整页跳转）不重置，退出关怀模式（`setCareUnlocked(true)`）或重新"进入老人视图"时重置——这是"按连续播放时长"计时的基础
+- **`hooks/useCareAutoStop.ts`**（新增）：按 `duration`/`dailyTime` 两种模式判断是否应停播；`dailyTime` 用 `Intl.DateTimeFormat` 取北京时间 `HH:mm` 与设定值做字符串比较。一旦触发保持 `triggered=true`，不提供"继续播放"按钮，唯一恢复方式是退出关怀模式——这是刻意设计，否则停播形同虚设
+- **`hooks/useCareIdleScreensaver.ts`**（新增）：停播屏或手动暂停状态下，3 分钟无任何按键/点击/触摸则返回 `true`；捕获阶段拦截首次唤醒交互（`stopPropagation`），避免"解锁"操作误触发底层播放器的按键/点击
+- **`app/play/page.tsx`**：关怀模式渲染分支中接入上述两个 hook；播放器暂停状态通过 2 秒轮询 `artPlayerRef.current.paused` 获取（不侵入现有 ArtPlayer 事件绑定）；触发停播时立即调用 `.pause()`；渲染两层叠加遮罩——纯黑护眼提示屏（z-30，含退出关怀模式按钮）与防烧屏遮罩（z-40，近乎纯黑 + 低对比度提示文字）
+- **`app/care-admin/page.tsx`**：播放策略标签页新增"定时停止播放（护眼）"卡片：启用开关、`RadioGroup`（按连续播放时长 / 按每日固定时间）、`InputNumber`（分钟数）或 `Input`（HH:mm，失焦校验格式非法则回退默认值）
+
+### 验证
+
+- typecheck / eslint(`--max-warnings=0`) / `next build` 全部通过
+- 冒烟：`/`、`/login`、`/register`、`/settings`、`/care-admin`、`/admin`、`/care`、`/care/verify` 均 200，服务端日志无报错
+- 因 care-admin 配置读写在客户端 localStorage，SSR 响应看不到具体文案；改为核对生产构建产物（`.next/static/chunks`）确认新增文案（"定时停止播放"、"按连续播放时长"、护眼提示语、防烧屏提示语）已正确打包
+
 ### 后续待办
 
+- [ ] admin 页各配置表单（站点/用户/分类/配置文件）尚未转换为 TDesign 组件
 - [ ] M2：关怀配置迁移到服务端存储（redis/upstash 模式下多设备共享）
 - [ ] M2：老人端状态上报（当前在看什么、播放器状态），供家属远程查看
 - [ ] M3：播放列表支持"从第 x 集到第 y 集"的区间播放

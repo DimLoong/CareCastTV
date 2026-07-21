@@ -12,6 +12,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 
 import {
   buildCarePlayUrl,
+  CARECAST_UPDATE_EVENT,
   findNextPlaylistItem,
   getCareConfig,
   markPlaylistCurrentBySource,
@@ -32,6 +33,8 @@ import {
 import { SearchResult } from '@/lib/types';
 import { generateCacheKey, globalCache } from '@/lib/unified-cache';
 import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
+import { useCareAutoStop } from '@/hooks/useCareAutoStop';
+import { useCareIdleScreensaver } from '@/hooks/useCareIdleScreensaver';
 import { useCareRemoteConfig } from '@/hooks/useCareRemoteConfig';
 import { isIOSPlatform, useCast } from '@/hooks/useCast';
 import { useDoubanInfo } from '@/hooks/useDoubanInfo';
@@ -177,6 +180,43 @@ function PlayPageClient() {
 
   // 关怀模式下观看期间持续轮询远程配置（家属可远程切换节目）
   useCareRemoteConfig(isCareMode);
+
+  // 定时停止播放（护眼）：读取本地关怀配置的 autoStop 策略
+  const [careAutoStopConfig, setCareAutoStopConfig] = useState(
+    () => getCareConfig().autoStop,
+  );
+  useEffect(() => {
+    if (!isCareMode) return;
+    const sync = () => setCareAutoStopConfig(getCareConfig().autoStop);
+    sync();
+    window.addEventListener(CARECAST_UPDATE_EVENT, sync);
+    return () => window.removeEventListener(CARECAST_UPDATE_EVENT, sync);
+  }, [isCareMode]);
+  const autoStop = useCareAutoStop(isCareMode, careAutoStopConfig);
+
+  // 播放器暂停状态轮询（供防烧屏遮罩判断是否处于"静止画面"）
+  const [isPlayerPaused, setIsPlayerPaused] = useState(false);
+  useEffect(() => {
+    if (!isCareMode) return;
+    const timer = setInterval(() => {
+      setIsPlayerPaused(!!artPlayerRef.current?.paused);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [isCareMode]);
+
+  // 触发定时停播后立即暂停播放器
+  useEffect(() => {
+    if (autoStop.triggered && artPlayerRef.current && !artPlayerRef.current.paused) {
+      artPlayerRef.current.pause();
+    }
+  }, [autoStop.triggered]);
+
+  // 防烧屏遮罩：停播提示屏或手动暂停超过 3 分钟无操作时生效
+  const isScreensaverActive =
+    isCareMode && (autoStop.triggered || isPlayerPaused);
+  const isDimmedForBurnInProtection = useCareIdleScreensaver(
+    isScreensaverActive,
+  );
 
   // 是否需要优选
   const [needPrefer, setNeedPrefer] = useState(
@@ -2138,6 +2178,36 @@ function PlayPageClient() {
             )}
           </span>
         </div>
+
+        {/* 定时停止播放：纯黑屏 + 护眼提示 + 退出关怀模式入口 */}
+        {autoStop.triggered && (
+          <div className='absolute inset-0 z-30 flex flex-col items-center justify-center gap-8 bg-black text-white select-none px-6'>
+            <div className='text-7xl'>🌙</div>
+            <h1 className='text-4xl font-bold text-center'>
+              已停止播放，请休息一下
+            </h1>
+            <p className='text-xl text-gray-400 text-center'>
+              长时间观看对眼睛不好，为了呵护您的眼睛，已自动停止播放
+            </p>
+            <button
+              onClick={() => {
+                window.location.href = '/care/verify';
+              }}
+              className='brand-gradient-bg px-10 py-5 rounded-2xl text-2xl font-bold focus:outline-none focus:ring-8 focus:ring-orange-300/50 transition-all hover:brightness-110'
+            >
+              退出关怀模式
+            </button>
+          </div>
+        )}
+
+        {/* 防烧屏遮罩：停播/暂停超过 3 分钟无操作，画面降到近乎纯黑 */}
+        {isDimmedForBurnInProtection && (
+          <div className='absolute inset-0 z-40 flex items-center justify-center bg-black'>
+            <p className='text-gray-700 text-sm tracking-widest'>
+              长时间无操作，按任意按键解锁
+            </p>
+          </div>
+        )}
       </div>
     );
   }

@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { Button } from 'tdesign-react';
 
 import { CURRENT_VERSION } from '@/lib/version';
 import { checkForUpdates, UpdateStatus } from '@/lib/version_check';
@@ -437,22 +438,24 @@ function RegisterPageClient() {
           )}
 
           {/* 注册按钮 */}
-          <button
+          <Button
             type='submit'
+            block
+            size='large'
+            loading={loading}
             disabled={
               !username ||
               !password ||
               !confirmPassword ||
               !captcha ||
-              loading ||
               !!getUsernameError() ||
               !!getPasswordError() ||
               !!getConfirmPasswordError()
             }
-            className='inline-flex w-full justify-center rounded-2xl bg-linear-to-r from-purple-600 via-fuchsia-600 to-pink-600 py-3.5 text-base font-bold text-white shadow-lg transition-all duration-300 hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 neon-pulse login-button'
+            className='brand-btn !rounded-2xl !py-3.5 text-base font-bold shadow-lg hover:scale-[1.02] active:scale-[0.98] login-button'
           >
             {loading ? '注册中...' : '立即注册'}
-          </button>
+          </Button>
 
           {/* 登录链接 */}
           <div className='text-center pt-2'>

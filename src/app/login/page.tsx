@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { Button } from 'tdesign-react';
 
 import { CURRENT_VERSION } from '@/lib/version';
 import {
@@ -322,13 +323,16 @@ function LoginPageClient() {
           )}
 
           {/* 登录按钮 */}
-          <button
+          <Button
             type='submit'
-            disabled={!password || loading || (shouldAskUsername && !username)}
-            className='brand-btn inline-flex w-full justify-center rounded-lg py-3 text-base font-semibold shadow-lg hover:scale-105 disabled:cursor-not-allowed login-button'
+            block
+            size='large'
+            loading={loading}
+            disabled={!password || (shouldAskUsername && !username)}
+            className='brand-btn !rounded-lg !py-3 !text-base font-semibold shadow-lg hover:scale-105 login-button'
           >
             {loading ? '登录中...' : '登录'}
-          </button>
+          </Button>
 
           {/* 注册链接 */}
           {registrationEnabled && (

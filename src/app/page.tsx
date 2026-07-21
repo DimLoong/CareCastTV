@@ -12,6 +12,7 @@
 import { HeartHandshake, Search, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
+import { Button } from 'tdesign-react';
 import 'tdesign-react/lib/_util/react-19-adapter';
 
 import {
@@ -227,12 +228,14 @@ function HomeClient() {
             <p className='mb-6 text-gray-700 dark:text-gray-200 leading-relaxed'>
               {announcement}
             </p>
-            <button
+            <Button
               onClick={() => handleCloseAnnouncement(announcement)}
-              className='brand-btn w-full rounded-lg px-4 py-3 font-medium'
+              block
+              size='large'
+              className='brand-btn !rounded-lg !py-3 font-medium'
             >
               我知道了
-            </button>
+            </Button>
           </div>
         </div>
       )}

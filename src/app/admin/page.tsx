@@ -25,7 +25,6 @@ import {
   AlertCircle,
   AlertTriangle,
   Check,
-  CheckCircle,
   ChevronDown,
   Copy,
   Database,
@@ -48,6 +47,12 @@ import 'tdesign-react/lib/_util/react-19-adapter';
 import { AdminConfig } from '@/lib/admin.types';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
+import {
+  AlertModal,
+  showError,
+  showSuccess,
+  useAlertModal,
+} from '@/components/AlertModal';
 import DataMigration from '@/components/DataMigration';
 import type { ImportExportModalProps } from '@/components/ImportExportModal';
 import ManageLayout, { ManageSubTab } from '@/components/ManageLayout';
@@ -130,159 +135,6 @@ const buttonStyles = {
   // 快速操作按钮样式
   quickAction:
     'px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors',
-};
-
-// 通用弹窗组件
-interface AlertModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  type: 'success' | 'error' | 'warning';
-  title: string;
-  message?: string;
-  timer?: number;
-  showConfirm?: boolean;
-}
-
-const AlertModal = ({
-  isOpen,
-  onClose,
-  type,
-  title,
-  message,
-  timer,
-  showConfirm = false,
-}: AlertModalProps) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  // 确保组件已挂载到客户端
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsVisible(true);
-      if (timer) {
-        const timeoutId = setTimeout(() => {
-          onClose();
-        }, timer);
-        return () => clearTimeout(timeoutId);
-      }
-    } else {
-      setIsVisible(false);
-    }
-  }, [isOpen, timer, onClose]);
-
-  // 未挂载或未打开时不渲染
-  if (!mounted || !isOpen) return null;
-
-  const getIcon = () => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle className='w-8 h-8 text-green-500' />;
-      case 'error':
-        return <AlertCircle className='w-8 h-8 text-red-500' />;
-      case 'warning':
-        return <AlertTriangle className='w-8 h-8 text-yellow-500' />;
-      default:
-        return null;
-    }
-  };
-
-  const getBgColor = () => {
-    switch (type) {
-      case 'success':
-        return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
-      case 'error':
-        return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
-      case 'warning':
-        return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
-      default:
-        return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
-    }
-  };
-
-  return createPortal(
-    <div
-      className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 ${
-        isVisible ? 'opacity-100' : 'opacity-0'
-      }`}
-      onClick={onClose}
-    >
-      <div
-        className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full border ${getBgColor()} transition-all duration-200 ${
-          isVisible ? 'scale-100' : 'scale-95'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className='p-6 text-center'>
-          <div className='flex justify-center mb-4'>{getIcon()}</div>
-
-          <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2'>
-            {title}
-          </h3>
-
-          {message && (
-            <p className='text-gray-600 dark:text-gray-400 mb-4'>{message}</p>
-          )}
-
-          {showConfirm && (
-            <button
-              onClick={onClose}
-              className={`px-4 py-2 text-sm font-medium ${buttonStyles.primary}`}
-            >
-              确定
-            </button>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-};
-
-// 弹窗状态管理
-const useAlertModal = () => {
-  const [alertModal, setAlertModal] = useState<{
-    isOpen: boolean;
-    type: 'success' | 'error' | 'warning';
-    title: string;
-    message?: string;
-    timer?: number;
-    showConfirm?: boolean;
-  }>({
-    isOpen: false,
-    type: 'success',
-    title: '',
-  });
-
-  const showAlert = (config: Omit<typeof alertModal, 'isOpen'>) => {
-    setAlertModal({ ...config, isOpen: true });
-  };
-
-  const hideAlert = () => {
-    setAlertModal((prev) => ({ ...prev, isOpen: false }));
-  };
-
-  return { alertModal, showAlert, hideAlert };
-};
-
-// 统一弹窗方法（必须在首次使用前定义）
-const showError = (message: string, showAlert?: (config: any) => void) => {
-  if (showAlert) {
-    showAlert({ type: 'error', title: '错误', message, showConfirm: true });
-  } else {
-    console.error(message);
-  }
-};
-
-const showSuccess = (message: string, showAlert?: (config: any) => void) => {
-  if (showAlert) {
-    showAlert({ type: 'success', title: '成功', message, timer: 2000 });
-  } else {
-    console.log(message);
-  }
 };
 
 // 通用加载状态管理系统
@@ -2530,21 +2382,6 @@ const VideoSourceConfig = ({
     return selectedSources.size === sources.length && selectedSources.size > 0;
   }, [selectedSources.size, sources.length]);
 
-  // 确认弹窗状态
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    onCancel: () => void;
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    onCancel: () => {},
-  });
-
   // 有效性检测相关状态
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -2842,20 +2679,19 @@ const VideoSourceConfig = ({
       return;
     }
 
-    // 删除属于不可恢复操作，先弹二次确认
-    setConfirmModal({
-      isOpen: true,
+    // 删除属于不可恢复操作，先弹二次确认（TDesign Dialog）
+    showAlert({
+      type: 'warning',
       title: '确认删除视频源',
       message: `确定要删除视频源「${target.name}」（key: ${key}）吗？\n\n此操作不可恢复！`,
+      confirmText: '删除',
       onConfirm: () => {
-        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         withLoading(`deleteSource_${key}`, () =>
           callSourceApi({ action: 'delete', key }),
         ).catch(() => {
           console.error('操作失败', 'delete', key);
         });
       },
-      onCancel: () => setConfirmModal((prev) => ({ ...prev, isOpen: false })),
     });
   };
 
@@ -3725,10 +3561,11 @@ const VideoSourceConfig = ({
     }
 
     // 显示确认弹窗
-    setConfirmModal({
-      isOpen: true,
+    showAlert({
+      type: 'warning',
       title: '确认操作',
       message: confirmMessage,
+      confirmText: '确定',
       onConfirm: async () => {
         try {
           await withLoading(`batchSource_${action}`, () =>
@@ -3780,22 +3617,6 @@ const VideoSourceConfig = ({
             message: err instanceof Error ? err.message : '操作失败',
           });
         }
-        setConfirmModal({
-          isOpen: false,
-          title: '',
-          message: '',
-          onConfirm: () => {},
-          onCancel: () => {},
-        });
-      },
-      onCancel: () => {
-        setConfirmModal({
-          isOpen: false,
-          title: '',
-          message: '',
-          onConfirm: () => {},
-          onCancel: () => {},
-        });
       },
     });
   };
@@ -4316,83 +4137,6 @@ const VideoSourceConfig = ({
         />
       )}
 
-      {/* 批量操作确认弹窗 */}
-      {confirmModal.isOpen &&
-        createPortal(
-          <div
-            className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
-            onClick={confirmModal.onCancel}
-          >
-            <div
-              className='bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full'
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className='p-6'>
-                <div className='flex items-center justify-between mb-4'>
-                  <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-                    {confirmModal.title}
-                  </h3>
-                  <button
-                    onClick={confirmModal.onCancel}
-                    className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors'
-                  >
-                    <svg
-                      className='w-5 h-5'
-                      fill='none'
-                      stroke='currentColor'
-                      viewBox='0 0 24 24'
-                    >
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        strokeWidth={2}
-                        d='M6 18L18 6M6 6l12 12'
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className='mb-6'>
-                  <p className='text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line'>
-                    {confirmModal.message}
-                  </p>
-                </div>
-
-                {/* 操作按钮 */}
-                <div className='flex justify-end space-x-3'>
-                  <button
-                    onClick={confirmModal.onCancel}
-                    className={`px-4 py-2 text-sm font-medium ${buttonStyles.secondary}`}
-                  >
-                    取消
-                  </button>
-                  <button
-                    onClick={confirmModal.onConfirm}
-                    disabled={
-                      isLoading('batchSource_batch_enable') ||
-                      isLoading('batchSource_batch_disable') ||
-                      isLoading('batchSource_batch_delete')
-                    }
-                    className={`px-4 py-2 text-sm font-medium ${
-                      isLoading('batchSource_batch_enable') ||
-                      isLoading('batchSource_batch_disable') ||
-                      isLoading('batchSource_batch_delete')
-                        ? buttonStyles.disabled
-                        : buttonStyles.primary
-                    }`}
-                  >
-                    {isLoading('batchSource_batch_enable') ||
-                    isLoading('batchSource_batch_disable') ||
-                    isLoading('batchSource_batch_delete')
-                      ? '操作中...'
-                      : '确认'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </div>
   );
 };
@@ -5746,13 +5490,12 @@ const SiteConfigComponent = ({
 
 function AdminPageClient() {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
-  const { isLoading, withLoading } = useLoadingState();
+  const { withLoading } = useLoadingState();
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<'owner' | 'admin' | null>(null);
   const [storageMode, setStorageMode] = useState<'cloud' | 'local'>('cloud'); // 存储模式
-  const [showResetConfigModal, setShowResetConfigModal] = useState(false);
   // 电视端左右结构：当前激活的配置分区（左侧 tab 决定右侧内容）
   const [activeSection, setActiveSection] = useState('videoSource');
 
@@ -5889,25 +5632,32 @@ function AdminPageClient() {
     fetchConfig(true);
   }, [fetchConfig]);
 
-  // 新增: 重置配置处理函数
+  // 重置配置：TDesign Dialog 二次确认后再执行
   const handleResetConfig = () => {
-    setShowResetConfigModal(true);
-  };
-
-  const handleConfirmResetConfig = async () => {
-    await withLoading('resetConfig', async () => {
-      try {
-        const response = await fetch(`/api/admin/reset`);
-        if (!response.ok) {
-          throw new Error(`重置失败: ${response.status}`);
-        }
-        showSuccess('重置成功，请刷新页面！', showAlert);
-        await fetchConfig();
-        setShowResetConfigModal(false);
-      } catch (err) {
-        showError(err instanceof Error ? err.message : '重置失败', showAlert);
-        throw err;
-      }
+    showAlert({
+      type: 'warning',
+      title: '确认重置配置',
+      message:
+        '⚠️ 危险操作\n\n此操作将重置用户封禁和管理员设置、自定义视频源，站点配置将重置为默认值，是否继续？',
+      confirmText: '确认重置',
+      onConfirm: async () => {
+        await withLoading('resetConfig', async () => {
+          try {
+            const response = await fetch(`/api/admin/reset`);
+            if (!response.ok) {
+              throw new Error(`重置失败: ${response.status}`);
+            }
+            showSuccess('重置成功，请刷新页面！', showAlert);
+            await fetchConfig();
+          } catch (err) {
+            showError(
+              err instanceof Error ? err.message : '重置失败',
+              showAlert,
+            );
+            throw err;
+          }
+        });
+      },
     });
   };
 
@@ -6075,93 +5825,6 @@ function AdminPageClient() {
         showConfirm={alertModal.showConfirm}
       />
 
-      {/* 重置配置确认弹窗 */}
-      {showResetConfigModal &&
-        createPortal(
-          <div
-            className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
-            onClick={() => setShowResetConfigModal(false)}
-          >
-            <div
-              className='bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full'
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className='p-6'>
-                <div className='flex items-center justify-between mb-6'>
-                  <h3 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
-                    确认重置配置
-                  </h3>
-                  <button
-                    onClick={() => setShowResetConfigModal(false)}
-                    className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors'
-                  >
-                    <svg
-                      className='w-6 h-6'
-                      fill='none'
-                      stroke='currentColor'
-                      viewBox='0 0 24 24'
-                    >
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        strokeWidth={2}
-                        d='M6 18L18 6M6 6l12 12'
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className='mb-6'>
-                  <div className='bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4'>
-                    <div className='flex items-center space-x-2 mb-2'>
-                      <svg
-                        className='w-5 h-5 text-yellow-600 dark:text-yellow-400'
-                        fill='none'
-                        stroke='currentColor'
-                        viewBox='0 0 24 24'
-                      >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth={2}
-                          d='M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-                        />
-                      </svg>
-                      <span className='text-sm font-medium text-yellow-800 dark:text-yellow-300'>
-                        ⚠️ 危险操作警告
-                      </span>
-                    </div>
-                    <p className='text-sm text-yellow-700 dark:text-yellow-400'>
-                      此操作将重置用户封禁和管理员设置、自定义视频源，站点配置将重置为默认值，是否继续？
-                    </p>
-                  </div>
-                </div>
-
-                {/* 操作按钮 */}
-                <div className='flex justify-end space-x-3'>
-                  <button
-                    onClick={() => setShowResetConfigModal(false)}
-                    className={`px-6 py-2.5 text-sm font-medium ${buttonStyles.secondary}`}
-                  >
-                    取消
-                  </button>
-                  <button
-                    onClick={handleConfirmResetConfig}
-                    disabled={isLoading('resetConfig')}
-                    className={`px-6 py-2.5 text-sm font-medium ${
-                      isLoading('resetConfig')
-                        ? buttonStyles.disabled
-                        : buttonStyles.danger
-                    }`}
-                  >
-                    {isLoading('resetConfig') ? '重置中...' : '确认重置'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </PageLayout>
   );
 }

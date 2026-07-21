@@ -29,6 +29,8 @@ const PLAYLIST_KEY = 'carecast_playlist';
 const REMOTE_STATE_KEY = 'carecast_remote_state';
 /** 算术验证通过后的解锁标记（sessionStorage，关闭浏览器自动失效） */
 const UNLOCK_KEY = 'carecast_unlocked';
+/** 本次连续观看会话起点（sessionStorage），供"定时停止播放·按时长"计时 */
+const SESSION_START_KEY = 'carecast_playback_session_start';
 
 /** 配置变化事件，供 UI 订阅刷新 */
 export const CARECAST_UPDATE_EVENT = 'carecastDataUpdated';
@@ -295,10 +297,39 @@ export function setCareUnlocked(unlocked: boolean) {
   if (!isBrowser()) return;
   if (unlocked) {
     sessionStorage.setItem(UNLOCK_KEY, '1');
+    // 退出关怀模式意味着这一次"观看会话"结束，重置连续播放计时
+    resetPlaybackSession();
   } else {
     sessionStorage.removeItem(UNLOCK_KEY);
   }
   emitUpdate();
+}
+
+// ---------------------------------------------------------------------------
+// 连续播放会话计时（供"定时停止播放·按连续播放时长"使用）
+// ---------------------------------------------------------------------------
+
+/**
+ * 获取本次连续观看会话的起点时间戳。首次调用时写入当前时间并在
+ * sessionStorage 中保持，跨剧连播（play 页整页跳转）不会重置，
+ * 关闭浏览器标签页或调用 {@link resetPlaybackSession} 才会重置。
+ */
+export function getPlaybackSessionStart(): number {
+  if (!isBrowser()) return Date.now();
+  const raw = sessionStorage.getItem(SESSION_START_KEY);
+  if (raw) {
+    const parsed = parseInt(raw, 10);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  const now = Date.now();
+  sessionStorage.setItem(SESSION_START_KEY, String(now));
+  return now;
+}
+
+/** 重置连续播放计时（退出关怀模式 / 重新进入老人视图时调用） */
+export function resetPlaybackSession() {
+  if (!isBrowser()) return;
+  sessionStorage.removeItem(SESSION_START_KEY);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,7 +382,12 @@ export function applyRemoteConfigFile(file: CareRemoteFile): ApplyRemoteResult {
   if (file.version > state.lastAppliedVersion) {
     if (file.config) {
       const local = getCareConfig();
-      saveCareConfig({ ...local, ...file.config });
+      saveCareConfig({
+        ...local,
+        ...file.config,
+        // autoStop 是嵌套对象，深合并避免远程只下发部分字段时冲掉本地其余设置
+        autoStop: { ...local.autoStop, ...file.config.autoStop },
+      });
       result.configChanged = true;
     }
     if (file.playlist) {
@@ -399,6 +435,7 @@ export function exportRemoteConfigFile(): CareRemoteFile {
       countdownSeconds: config.countdownSeconds,
       verifyTimeoutSeconds: config.verifyTimeoutSeconds,
       autoAdvance: config.autoAdvance,
+      autoStop: config.autoStop,
     },
     playlist: {
       items: playlist.items,
